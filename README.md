@@ -41,7 +41,7 @@ KaggleHub経由で取得したmHealthデータセットをETL処理し、Athena�
 ## 🧱 S3 構成例
 
 ```
-s3://your-bucket-name/
+s3://aws-data-platform-20250607/
 ├── raw/             ← Lambda①保存 (CSV)
 ├── stage/           ← Lambda②またはGlue① (Parquet)
 └── processed/       ← Glue②出力 (整形済Parquet)
