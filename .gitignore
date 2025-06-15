@@ -1,0 +1,22 @@
+# Pythonの一般的なもの
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# SAMのビルド成果物
+.aws-sam/
+
+# 環境変数や資格情報系（重要）
+kaggle_credentials.json
+
+# 任意: Layerにビルド成果物を配置している場合
+layer/python/lib/
+
+# VSCodeなどのエディタ系
+.vscode/
+.idea/
