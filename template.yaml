@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  aws-data-platform
+
+  Sample SAM Template for aws-data-platform
+
+Parameters:
+  KaggleUsername:
+    Type: String
+    Description: Kaggle Username
+  KaggleKey:
+    Type: String
+    Description: Kaggle Key
+
+Globals:
+  Function:
+    Timeout: 120
+
+Resources:
+  DownloadAndUploadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: download_and_upload/
+      Handler: download_and_upload.lambda_handler
+      Runtime: python3.11
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          BUCKET_NAME: aws-data-platform-20250607
+          KAGGLE_USERNAME: !Ref KaggleUsername
+          KAGGLE_KEY: !Ref KaggleKey
+      Layers:
+        - !Ref KaggleApiLayer
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+
+  ConvertCsvToParquetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: convert_csv_to_parquet/
+      Handler: convert_csv_to_parquet.lambda_handler
+      Runtime: python3.11
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          BUCKET_NAME: aws-data-platform-20250607
+      Layers:
+        - !Ref KaggleApiLayer
+
+  KaggleApiLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: layer/
+      CompatibleRuntimes:
+        - python3.11
+      LicenseInfo: MIT
+    Description: Kaggle API dependencies layer
+
+Outputs:
+  HelloWorldApi:
+    Description: "API Gateway endpoint URL for Prod stage"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+  HelloWorldFunction:
+    Description: "Hello World Lambda Function ARN"
+    Value: !GetAtt HelloWorldFunction.Arn
+  HelloWorldFunctionIamRole:
+    Description: "Implicit IAM Role created for Hello World function"
+    Value: !GetAtt HelloWorldFunctionRole.Arn
