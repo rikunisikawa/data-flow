@@ -179,7 +179,7 @@ Resources:
       Runtime: python3.11
       Environment:
         Variables:
-          BUCKET_NAME: your-bucket-name
+          BUCKET_NAME: aws-data-platform-20250607
 ```
 
 ---
@@ -214,7 +214,7 @@ CREATE EXTERNAL TABLE mhealth (
   accel_z double
 )
 STORED AS PARQUET
-LOCATION 's3://your-bucket-name/processed/';
+LOCATION 's3://aws-data-platform-20250607/processed/';
 ```
 
 ---

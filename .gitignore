@@ -15,7 +15,7 @@ venv/
 kaggle_credentials.json
 
 # 任意: Layerにビルド成果物を配置している場合
-layer/python/lib/
+layer/python/
 
 # VSCodeなどのエディタ系
 .vscode/
