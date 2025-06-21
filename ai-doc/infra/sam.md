@@ -2,7 +2,7 @@
 
 ## 🎯 開発目的
 
-- Kaggle公式API経由で取得した**mHealthデータセット**をETL処理し、**Parquet形式でS3に格納**。
+- Kaggle公式API経由で取得した**mHealthデータセット（logファイル）**をETL処理し、**Parquet形式でS3に格納**。
 - それをAthenaで分析できるようにする自動化データ基盤を、**AWS SAM（Serverless Application Model）**で構築する。
 
 ---
@@ -26,7 +26,7 @@
 
 ```
 s3://aws-data-platform-20250607/
-├── raw/        # Lambda① が保存（CSV）
+├── raw/        # Lambda① が保存（logファイル）
 ├── stage/      # Lambda② or Glue① が保存（Parquet）
 └── processed/  # Glue② が保存（整形後Parquet）
 ```
@@ -35,29 +35,29 @@ s3://aws-data-platform-20250607/
 
 ## 🔄 データ処理フロー（ETL）
 
-| ステップ | 処理内容                         | 実装先        |
-|----------|----------------------------------|----------------|
-| ①        | Kaggle APIからCSVを取得しS3保存  | Lambda①       |
-| ②        | CSV → Parquet形式に変換         | Lambda②またはGlue① |
-| ③        | データ整形（カラム名統一など）   | Glue②         |
-| ④        | Glue Catalog登録 & Athena対応   | Glue②         |
+| ステップ | 処理内容                           | 実装先        |
+|----------|------------------------------------|----------------|
+| ①        | Kaggle APIからlogファイル取得→S3保存 | Lambda①       |
+| ②        | log → Parquet形式に変換             | Lambda②またはGlue① |
+| ③        | データ整形（カラム名統一など）       | Glue②         |
+| ④        | Glue Catalog登録 & Athena対応     | Glue②         |
 
 ---
 
 ## 📦 SAM定義リソース（template.yaml）
 
 - Lambda①：`download_and_upload.lambda_handler`
-- Lambda②：`convert_csv_to_parquet.lambda_handler`
+- Lambda②：`convert_log_to_parquet.lambda_handler`
 - Step Functions：上記LambdaとGlueジョブを連携
 - 環境変数：`BUCKET_NAME=aws-data-platform-20250607`
 
 ---
 
-## ✅ Lambda①（CSVダウンロード → S3保存）
+## ✅ Lambda①（logダウンロード → S3保存）
 
 - **入力**：なし（定時実行）
 - **処理**：
-  - `kaggle` 公式APIでmHealth CSVをダウンロード
+  - `kaggle` 公式APIでmHealth logファイルをダウンロード
   - S3 `/raw/` にアップロード
 - **依存ライブラリ**：`kaggle`
 - **認証**：`kaggle.json` をSecrets ManagerやParameter Storeに保存し、Lambda起動時に取得
@@ -72,7 +72,6 @@ import zipfile
 from kaggle.api.kaggle_api_extended import KaggleApi
 
 def lambda_handler(event, context):
-    # kaggle.jsonは環境変数またはSecrets Managerから取得して配置済み想定
     api = KaggleApi()
     api.authenticate()
 
@@ -90,17 +89,20 @@ def lambda_handler(event, context):
 
     for root, dirs, files in os.walk(extract_path):
         for file in files:
-            file_path = os.path.join(root, file)
-            s3_key = f'raw/{file}'
-            s3.upload_file(file_path, bucket, s3_key)
+            if file.endswith(".log"):
+                file_path = os.path.join(root, file)
+                s3_key = f'raw/{file}'
+                s3.upload_file(file_path, bucket, s3_key)
 ```
 
 ---
 
-## ✅ Lambda②（CSV → Parquet変換）
+## ✅ Lambda②（log → Parquet変換）
 
-- **入力**：S3 `/raw/*.csv`
-- **処理**：pandas + pyarrow で読み込み → Parquet変換 → `/stage/` に保存
+- **入力**：S3 `/raw/*.log`
+- **処理**：
+  - `pandas` でログを DataFrame として読み込み（区切り文字に応じて処理）
+  - Parquet形式に変換 → `/stage/` に保存
 - **依存ライブラリ**：`pandas`, `pyarrow`, `boto3`
 
 ---
@@ -120,15 +122,18 @@ def lambda_handler(event, context):
 
 ```sql
 CREATE EXTERNAL TABLE mhealth (
-  id string,
+  user_id string,
+  activity string,
   timestamp timestamp,
-  accel_x double,
-  accel_y double,
-  accel_z double
+  sensor1 double,
+  sensor2 double,
+  sensor3 double
 )
 STORED AS PARQUET
 LOCATION 's3://aws-data-platform-20250607/processed/';
 ```
+
+※logファイルの具体的な形式に応じてスキーマは変更
 
 ---
 
@@ -143,7 +148,7 @@ LOCATION 's3://aws-data-platform-20250607/processed/';
 ## ✅ ローカルで依存ライブラリインストール
 
 ```bash
-pip install -r download_and_upload/requirements.txt --target download_and_upload
+pip install -r convert_log_to_parquet/requirements.txt --target convert_log_to_parquet
 ```
 
 ---
