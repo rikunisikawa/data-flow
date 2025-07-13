@@ -103,7 +103,7 @@ pip install pandas pyarrow -t lambda/convert/
 ```
 
 ```python
-# lambda/convert_csv_to_parquet.py
+# lambda/convert_log_to_parquet.py
 import boto3
 import pandas as pd
 import pyarrow.parquet as pq

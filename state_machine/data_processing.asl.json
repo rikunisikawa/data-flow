@@ -1,0 +1,48 @@
+{
+  "Comment": "Data processing pipeline for mHealth dataset",
+  "StartAt": "DownloadData",
+  "States": {
+    "DownloadData": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${DownloadAndUploadFunctionArn}",
+        "Payload.$": "$"
+      },
+      "ResultPath": "$.downloadResult",
+      "Next": "ConvertToParquet",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "FailState",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "ConvertToParquet": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ConvertLogToParquetFunctionArn}",
+        "Payload.$": "$"
+      },
+      "ResultPath": "$.convertResult",
+      "Next": "SuccessState",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "FailState",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "SuccessState": {
+      "Type": "Succeed",
+      "Comment": "Data processing completed successfully"
+    },
+    "FailState": {
+      "Type": "Fail",
+      "Comment": "Data processing failed"
+    }
+  }
+}

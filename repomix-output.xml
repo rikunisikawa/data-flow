@@ -1,0 +1,912 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+ai-doc/
+  infra/
+    sam.md
+convert_log_to_parquet/
+  convert_log_to_parquet.py
+download_and_upload/
+  download_and_upload.py
+glue_job/
+  glue_job.py
+layer/
+  build/
+    Dockerfile
+    Makefile
+    requirements.txt
+state_machine/
+  data_processing.asl.json
+.gitignore
+CLAUDE.md
+env.json
+event.json
+README.md
+template.yaml
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="convert_log_to_parquet/convert_log_to_parquet.py">
+import os
+import boto3
+import pandas as pd
+import pyarrow
+import pyarrow.parquet as pq
+
+BUCKET_NAME = os.environ.get('BUCKET_NAME')
+S3_CLIENT = boto3.client('s3')
+
+def lambda_handler(event, context):
+    """
+    S3に保存されたlogファイルをParquet形式に変換し、S3に保存するLambda関数
+    Step Functions経由で実行される
+    """
+    try:
+        # S3 raw/フォルダ内の全ての.logファイルを取得
+        response = S3_CLIENT.list_objects_v2(Bucket=BUCKET_NAME, Prefix='raw/')
+        
+        converted_files = []
+        
+        if 'Contents' in response:
+            for obj in response['Contents']:
+                key = obj['Key']
+                if key.endswith('.log'):
+                    # logファイルをダウンロード
+                    log_file = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=key)
+                    log_content = log_file['Body'].read()
+
+                    # pandasでlogファイルを読み込み
+                    df = pd.read_csv(log_content)
+
+                    # Parquet形式に変換
+                    table = pyarrow.Table.from_pandas(df)
+                    parquet_buffer = pyarrow.BufferOutputStream()
+                    pq.write_table(table, parquet_buffer)
+
+                    # ParquetファイルをS3にアップロード
+                    parquet_key = key.replace('raw/', 'stage/').replace('.log', '.parquet')
+                    S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=parquet_key, Body=parquet_buffer.getvalue().to_pybytes())
+                    
+                    converted_files.append(parquet_key)
+                    print(f"Uploaded {parquet_key} to s3://{BUCKET_NAME}/{parquet_key}")
+
+        return {
+            'statusCode': 200,
+            'body': f'Successfully converted {len(converted_files)} log files to Parquet',
+            'convertedFiles': converted_files
+        }
+    except Exception as e:
+        print(f"Error: {e}")
+        return {
+            'statusCode': 500,
+            'body': f'Error: {e}'
+        }
+</file>
+
+<file path="layer/build/Dockerfile">
+FROM amazonlinux:2023
+
+RUN yum install -y gcc make python3-devel python3-pip
+
+WORKDIR /build
+COPY requirements.txt .
+# Install dependencies to a temporary directory within the image
+RUN pip3 install -r requirements.txt -t /var/task/dependencies
+
+CMD ["/bin/bash"]
+</file>
+
+<file path="layer/build/Makefile">
+.PHONY: build-KaggleApiLayer
+
+build-KaggleApiLayer:
+	@echo "Building layer with custom Dockerfile..."
+	docker build -t kaggle-layer-builder .
+	mkdir -p "$(ARTIFACTS_DIR)/python"
+	docker run --rm \
+	   -v "$(ARTIFACTS_DIR)/python":/opt/python \
+	   kaggle-layer-builder \
+	   cp -R /var/task/dependencies/. /opt/python/
+</file>
+
+<file path="layer/build/requirements.txt">
+boto3
+pandas
+pyarrow
+kaggle
+numpy
+</file>
+
+<file path="state_machine/data_processing.asl.json">
+{
+  "Comment": "Data processing pipeline for mHealth dataset",
+  "StartAt": "DownloadData",
+  "States": {
+    "DownloadData": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${DownloadAndUploadFunctionArn}",
+        "Payload.$": "$"
+      },
+      "ResultPath": "$.downloadResult",
+      "Next": "ConvertToParquet",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "FailState",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "ConvertToParquet": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ConvertLogToParquetFunctionArn}",
+        "Payload.$": "$"
+      },
+      "ResultPath": "$.convertResult",
+      "Next": "SuccessState",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "FailState",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "SuccessState": {
+      "Type": "Succeed",
+      "Comment": "Data processing completed successfully"
+    },
+    "FailState": {
+      "Type": "Fail",
+      "Comment": "Data processing failed"
+    }
+  }
+}
+</file>
+
+<file path="CLAUDE.md">
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+This is an AWS serverless data platform built with SAM (Serverless Application Model) that processes Kaggle mHealth dataset files through an ETL pipeline. The system downloads log files from Kaggle, converts them to Parquet format, and stores them in S3 for analysis with Athena.
+
+## Architecture
+
+### Data Flow
+1. **Lambda① (download_and_upload)**: Downloads mHealth dataset from Kaggle → saves to S3 `/raw/`
+2. **Lambda② (convert_csv_to_parquet)**: Converts CSV/log files to Parquet → saves to S3 `/stage/`
+3. **Glue Job**: Data transformation and catalog registration → saves to S3 `/processed/`
+4. **Athena**: Query interface for analysis
+
+### S3 Structure
+```
+s3://aws-data-platform-20250607/
+├── raw/         # Raw CSV/log files from Kaggle
+├── stage/       # Converted Parquet files
+└── processed/   # Cleaned and cataloged Parquet files
+```
+
+## Key Files
+
+- `template.yaml`: SAM infrastructure template
+- `download_and_upload/download_and_upload.py`: Kaggle data download Lambda
+- `convert_log_to_parquet/convert_log_to_parquet.py`: log to Parquet conversion Lambda
+- `glue_job/glue_job.py`: AWS Glue job for data transformation
+- `layer/python/requirements.txt`: Python dependencies for Lambda layer
+
+## Development Commands
+
+### Build and Deploy
+```bash
+sam build
+sam deploy --guided
+```
+
+### Local Testing
+```bash
+sam local invoke DownloadAndUploadFunction
+sam local invoke ConvertLogToParquetFunction
+```
+
+### Dependencies Installation
+The project uses a Lambda layer for shared dependencies. Install dependencies into the layer:
+```bash
+pip install -r layer/python/requirements.txt -t layer/python/
+```
+
+## Environment Variables
+
+- `BUCKET_NAME`: S3 bucket for data storage (aws-data-platform-20250607)
+- `KAGGLE_USERNAME`: Kaggle API username
+- `KAGGLE_KEY`: Kaggle API key
+
+## Dependencies
+
+Core Python packages used:
+- `boto3`: AWS SDK
+- `pandas`: Data manipulation
+- `pyarrow`: Parquet file handling
+- `kaggle`: Kaggle API client
+- `numpy`: Numerical computations
+
+## Data Processing Notes
+
+- The original design expected CSV files but the actual Kaggle dataset contains log files
+- Lambda functions handle file format conversion from CSV/log to Parquet
+- Glue job performs schema normalization and data catalog registration
+- Athena queries are supported through Glue Data Catalog integration
+</file>
+
+<file path="env.json">
+{
+  "ConvertLogToParquetFunction": {
+    "BUCKET_NAME": "aws-data-platform-20250607"
+  }
+}
+</file>
+
+<file path="event.json">
+{
+  "executionName": "test-execution",
+  "input": {}
+}
+</file>
+
+<file path="download_and_upload/download_and_upload.py">
+import boto3
+import os
+import boto3
+import os
+import zipfile
+from kaggle.api.kaggle_api_extended import KaggleApi
+
+def lambda_handler(event, context):
+    # 環境変数からKAGGLE_USERNAMEとKAGGLE_KEYを取得
+    kaggle_username = os.environ.get('KAGGLE_USERNAME')
+    kaggle_key = os.environ.get('KAGGLE_KEY')
+
+    if not kaggle_username or not kaggle_key:
+        print("KAGGLE_USERNAMEまたはKAGGLE_KEYが設定されていません")
+        return {
+            'statusCode': 500,
+            'body': 'KAGGLE_USERNAMEまたはKAGGLE_KEYが設定されていません'
+        }
+
+    # kaggle.jsonは環境変数またはSecrets Managerから取得して配置済み想定
+    api = KaggleApi()
+    api.set_config_value('username', kaggle_username)
+    api.set_config_value('key', kaggle_key)
+    api.authenticate()
+
+    dataset = 'nirmalsankalana/mhealth-dataset-data-set'
+    download_path = '/tmp/mhealth.zip'
+    extract_path = '/tmp/mhealth'
+
+    try:
+        api.dataset_download_files(dataset, path='/tmp', unzip=False)
+
+        with zipfile.ZipFile(download_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_path)
+
+        s3 = boto3.client('s3')
+        bucket = os.environ['BUCKET_NAME']
+
+        for root, dirs, files in os.walk(extract_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                s3_key = f'raw/{file}'
+                s3.upload_file(file_path, bucket, s3_key)
+
+        return {
+            'statusCode': 200,
+            'body': 'Successfully downloaded and uploaded data to S3'
+        }
+    except Exception as e:
+        print(f"Error: {e}")
+        return {
+            'statusCode': 500,
+            'body': f'Error: {e}'
+        }
+</file>
+
+<file path="glue_job/glue_job.py">
+import sys
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.job import Job
+
+## @params: JOB_NAME
+args = getResolvedOptions(sys.argv, ['JOB_NAME'])
+
+sc = SparkContext()
+glueContext = GlueContext(sc)
+spark = glueContext.spark_session
+job = Job(glueContext)
+job.init(args['JOB_NAME'], args)
+
+## @type: datasource
+## @args: [database, table_name, transformation_ctx]
+## @return: datasource0
+## @inputs: []
+datasource0 = glueContext.create_dynamic_frame.from_catalog(database="default", table_name="stage", transformation_ctx="datasource0")
+
+## @type: applymapping
+## @args: [mappings, transformation_ctx]
+## @return: applymapping1
+## @inputs: [datasource0]
+applymapping1 = ApplyMapping.apply(frame = datasource0, mappings = [("id", "string", "id", "string"), ("timestamp", "string", "timestamp", "timestamp"), ("accel_x", "double", "accel_x", "double"), ("accel_y", "double", "accel_y", "double"), ("accel_z", "double", "accel_z", "double")], transformation_ctx = "applymapping1")
+
+## @type: selectfields
+## @args: [paths, transformation_ctx]
+## @return: selectfields2
+## @inputs: [applymapping1]
+selectfields2 = SelectFields.apply(frame = applymapping1, paths = ["id", "timestamp", "accel_x", "accel_y", "accel_z"], transformation_ctx = "selectfields2")
+
+## @type: writedataframe
+## @args: [frame, transformation_ctx]
+## @return: writeparquet3
+## @inputs: [selectfields2]
+writeparquet3 = glueContext.write_dynamic_frame.from_options(frame = selectfields2, connection_type = "s3", connection_options = {"path": "s3://aws-data-platform-20250607/processed/"}, format = "parquet", transformation_ctx = "writeparquet3")
+
+job.commit()
+</file>
+
+<file path="template.yaml">
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  aws-data-platform
+
+  Sample SAM Template for aws-data-platform
+
+Parameters:
+  KaggleUsername:
+    Type: String
+    Description: Kaggle Username
+  KaggleKey:
+    Type: String
+    Description: Kaggle Key
+
+Globals:
+  Function:
+    Timeout: 120
+
+Resources:
+  DownloadAndUploadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: download_and_upload/
+      Handler: download_and_upload.lambda_handler
+      Runtime: python3.11
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          BUCKET_NAME: aws-data-platform-20250607
+          KAGGLE_USERNAME: !Ref KaggleUsername
+          KAGGLE_KEY: !Ref KaggleKey
+      Layers:
+        - !Ref KaggleApiLayer
+
+  ConvertLogToParquetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: convert_log_to_parquet/
+      Handler: convert_log_to_parquet.lambda_handler
+      Runtime: python3.11
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          BUCKET_NAME: aws-data-platform-20250607
+      Layers:
+        - !Ref KaggleApiLayer
+
+  DataProcessingStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: state_machine/data_processing.asl.json
+      DefinitionSubstitutions:
+        DownloadAndUploadFunctionArn: !GetAtt DownloadAndUploadFunction.Arn
+        ConvertLogToParquetFunctionArn: !GetAtt ConvertLogToParquetFunction.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref DownloadAndUploadFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ConvertLogToParquetFunction
+      Events:
+        DailySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+
+  KaggleApiLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: layer/build
+      CompatibleRuntimes:
+        - python3.11
+      LicenseInfo: MIT
+    Metadata:
+      BuildMethod: makefile
+    Description: Kaggle API dependencies layer
+
+Outputs:
+  HelloWorldApi:
+    Description: "API Gateway endpoint URL for Prod stage"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+  HelloWorldFunction:
+    Description: "Hello World Lambda Function ARN"
+    Value: !GetAtt HelloWorldFunction.Arn
+  HelloWorldFunctionIamRole:
+    Description: "Implicit IAM Role created for Hello World function"
+    Value: !GetAtt HelloWorldFunctionRole.Arn
+</file>
+
+<file path="ai-doc/infra/sam.md">
+# ✅ AI向け指示用仕様書：SAMを用いたデータ基盤開発
+
+## 🎯 開発目的
+
+- Kaggle公式API経由で取得した**mHealthデータセット（logファイル）**をETL処理し、**Parquet形式でS3に格納**。
+- それをAthenaで分析できるようにする自動化データ基盤を、**AWS SAM（Serverless Application Model）**で構築する。
+
+---
+
+## 🔧 技術スタック・前提
+
+- **ランタイム**：Python 3.11
+- **ツール**：AWS SAM, Docker, AWS CLI, kaggle公式API
+- **AWSサービス**：
+  - Lambda（Python）
+  - Step Functions（ETLフロー制御）
+  - Glue（整形＆カタログ更新）
+  - EventBridge（定時実行）
+  - S3（データ保存）
+  - Athena（分析）
+  - Glue Data Catalog（メタデータ管理）
+
+---
+
+## 📁 S3構成と用途
+
+```
+s3://aws-data-platform-20250607/
+├── raw/        # Lambda① が保存（logファイル）
+├── stage/      # Lambda② or Glue① が保存（Parquet）
+└── processed/  # Glue② が保存（整形後Parquet）
+```
+
+---
+
+## 🔄 データ処理フロー（ETL）
+
+| ステップ | 処理内容                           | 実装先        |
+|----------|------------------------------------|----------------|
+| ①        | Kaggle APIからlogファイル取得→S3保存 | Lambda①       |
+| ②        | log → Parquet形式に変換             | Lambda②またはGlue① |
+| ③        | データ整形（カラム名統一など）       | Glue②         |
+| ④        | Glue Catalog登録 & Athena対応     | Glue②         |
+
+---
+
+## 📦 SAM定義リソース（template.yaml）
+
+- Lambda①：`download_and_upload.lambda_handler`
+- Lambda②：`convert_log_to_parquet.lambda_handler`
+- Step Functions：Lambda①→Lambda②→Glueジョブの順次実行を制御
+- 環境変数：`BUCKET_NAME=aws-data-platform-20250607`
+- EventBridge：Step Functionsの定時実行トリガー
+
+---
+
+## ✅ Lambda①（logダウンロード → S3保存）
+
+- **入力**：なし（定時実行）
+- **処理**：
+  - `kaggle` 公式APIでmHealth logファイルをダウンロード
+  - S3 `/raw/` にアップロード
+- **依存ライブラリ**：`kaggle`
+- **認証**：`kaggle.json` をSecrets ManagerやParameter Storeに保存し、Lambda起動時に取得
+- **共通ライブラリ**：`boto3`
+
+**処理例コード**
+
+```python
+import boto3
+import os
+import zipfile
+from kaggle.api.kaggle_api_extended import KaggleApi
+
+def lambda_handler(event, context):
+    api = KaggleApi()
+    api.authenticate()
+
+    dataset = 'nirmalsankalana/mhealth-dataset-data-set'
+    download_path = '/tmp/mhealth.zip'
+    extract_path = '/tmp/mhealth'
+
+    api.dataset_download_files(dataset, path='/tmp', unzip=False)
+
+    with zipfile.ZipFile(download_path, 'r') as zip_ref:
+        zip_ref.extractall(extract_path)
+
+    s3 = boto3.client('s3')
+    bucket = os.environ['BUCKET_NAME']
+
+    for root, dirs, files in os.walk(extract_path):
+        for file in files:
+            if file.endswith(".log"):
+                file_path = os.path.join(root, file)
+                s3_key = f'raw/{file}'
+                s3.upload_file(file_path, bucket, s3_key)
+```
+
+---
+
+## ✅ Lambda②（log → Parquet変換）
+
+- **入力**：Step Functions経由での実行（S3イベントトリガーではない）
+- **処理**：
+  - S3 `/raw/` フォルダ内の全ての`.log`ファイルをスキャン
+  - `pandas` でログを DataFrame として読み込み（区切り文字に応じて処理）
+  - Parquet形式に変換 → `/stage/` に保存
+- **依存ライブラリ**：`pandas`, `pyarrow`, `boto3`
+- **トリガー**：Step Functions State Machine
+
+---
+
+## ✅ Glue②（整形・変換・カタログ）
+
+- **入力**：S3 `/stage/*.parquet`
+- **処理**：
+  - タイムスタンプ型変換
+  - カラム名の正規化（例：空白・大文字 → snake_case）
+- **出力**：S3 `/processed/`
+- **カタログ**：Glue Data Catalog に `mhealth` テーブル作成
+
+---
+
+## ✅ Athena DDL（想定スキーマ）
+
+```sql
+CREATE EXTERNAL TABLE mhealth (
+  user_id string,
+  activity string,
+  timestamp timestamp,
+  sensor1 double,
+  sensor2 double,
+  sensor3 double
+)
+STORED AS PARQUET
+LOCATION 's3://aws-data-platform-20250607/processed/';
+```
+
+※logファイルの具体的な形式に応じてスキーマは変更
+
+---
+
+## 🧪 テスト条件
+
+- Lambda関数は `sam local invoke` でローカルテストする
+- Glue②は最初にサンプルデータでテストしてAthenaでSELECT確認
+- 全体のStep Functionsは `sam deploy` 後、EventBridgeトリガーで動作確認
+
+---
+
+## ✅ ローカルで依存ライブラリインストール
+
+```bash
+pip install -r convert_log_to_parquet/requirements.txt --target convert_log_to_parquet
+```
+
+---
+</file>
+
+<file path=".gitignore">
+# Pythonの一般的なもの
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# SAMのビルド成果物
+.aws-sam/
+
+# 環境変数や資格情報系（重要）
+kaggle_credentials.json
+
+# 任意: Layerにビルド成果物を配置している場合
+layer/python/
+
+# VSCodeなどのエディタ系
+.vscode/
+.idea/
+</file>
+
+<file path="README.md">
+# data-flow
+データ基盤全般を構築
+
+# ✅ データ基盤構築フロー設計仕様書
+
+## 🎯 目的
+
+KaggleHub経由で取得したmHealthデータセットをETL処理し、Athenaで分析可能な形式（Parquet＋適切なスキーマ）でS3に格納する自動化データ基盤を構築する。
+
+---
+
+## 🗺️ 全体構成図（処理フロー）
+
+**EventBridge Scheduler**  
+→ 定時実行（例：毎日8:00）  
+→ **Step Functions**をトリガー
+
+**Step Functions ステップ**
+1. Lambda① → データ取得・S3保存  
+2. Lambda② または Glue① → CSV → Parquet変換  
+3. Glue② → データ整形 → S3（分析用パス）に保存
+
+**Athena**  
+→ Glue Data CatalogによりS3上のデータにクエリ可能
+
+---
+
+## 📦 使用サービスと役割
+
+| サービス       | 役割                                       |
+|----------------|--------------------------------------------|
+| EventBridge    | 定時トリガー                               |
+| Step Functions | 処理フロー制御                             |
+| Lambda①        | KaggleHubでデータ取得し、S3保存            |
+| Lambda② / Glue①| CSV → Parquet変換                          |
+| Glue②          | データ変換・整形・カタログ更新             |
+| Athena         | クエリ・分析実行                           |
+
+---
+
+## 🧱 S3 構成例
+
+```
+s3://aws-data-platform-20250607/
+├── raw/             ← Lambda①保存 (CSV)
+├── stage/           ← Lambda②またはGlue① (Parquet)
+└── processed/       ← Glue②出力 (整形済Parquet)
+```
+
+---
+
+## 💻 ローカル開発 & デプロイ手順
+
+### ✅ ステップ0：前提ツールのインストール
+
+- Python 3.11+
+- Docker
+- AWS CLI & `aws configure`
+- AWS SAM CLI (`brew install aws/tap/aws-sam-cli`)
+- `kagglehub` インストール：`pip install kagglehub`
+
+---
+
+### ✅ ステップ1：SAM プロジェクト作成
+
+```bash
+sam init
+# → runtime: python3.11
+# → template: Hello World Example
+```
+
+---
+
+### ✅ ステップ2：Lambda① 作成（データ取得＆S3保存）
+
+```python
+# lambda/download_and_upload.py
+import json
+import boto3
+import kagglehub
+from pathlib import Path
+import os
+
+s3 = boto3.client('s3')
+BUCKET = os.environ['BUCKET_NAME']
+
+def lambda_handler(event, context):
+    path = kagglehub.dataset_download("nirmalsankalana/mhealth-dataset-data-set")
+    local_path = Path(path)
+    for file in local_path.glob("**/*.csv"):
+        s3.upload_file(str(file), BUCKET, f"raw/{file.name}")
+    return {"status": "uploaded", "files": len(list(local_path.glob('*.csv')))}
+```
+
+---
+
+### ✅ ステップ3：Lambda②（CSV → Parquet） or Glue① を作成
+
+**Lambda版：`pandas + pyarrow` を使う**
+
+```bash
+pip install pandas pyarrow -t lambda/convert/
+```
+
+```python
+# lambda/convert_log_to_parquet.py
+import boto3
+import pandas as pd
+import pyarrow.parquet as pq
+import pyarrow as pa
+import os
+from io import BytesIO
+
+s3 = boto3.client("s3")
+BUCKET = os.environ['BUCKET_NAME']
+
+def lambda_handler(event, context):
+    response = s3.list_objects_v2(Bucket=BUCKET, Prefix='raw/')
+    for obj in response.get('Contents', []):
+        key = obj['Key']
+        if key.endswith('.csv'):
+            csv_obj = s3.get_object(Bucket=BUCKET, Key=key)
+            df = pd.read_csv(csv_obj['Body'])
+            table = pa.Table.from_pandas(df)
+            parquet_buffer = BytesIO()
+            pq.write_table(table, parquet_buffer)
+            s3.put_object(Bucket=BUCKET, Key=key.replace("raw/", "stage/").replace(".csv", ".parquet"),
+                          Body=parquet_buffer.getvalue())
+```
+
+---
+
+### ✅ ステップ4：Glue② 作成（整形・カタログ化）
+
+- データの型変換（例：timestamp変換、カラム名正規化）
+- `processed/` へParquet形式で保存
+- Glue Data Catalog にテーブル作成
+
+---
+
+### ✅ ステップ5：Step Functions 定義（template.yaml）
+
+```yaml
+Resources:
+  Workflow:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString:
+        Fn::Sub: |
+          {
+            "StartAt": "DownloadCSV",
+            "States": {
+              "DownloadCSV": {
+                "Type": "Task",
+                "Resource": "${DownloadFunction.Arn}",
+                "Next": "ConvertParquet"
+              },
+              "ConvertParquet": {
+                "Type": "Task",
+                "Resource": "${ConvertFunction.Arn}",
+                "Next": "GlueTransform"
+              },
+              "GlueTransform": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::glue:startJobRun.sync",
+                "Parameters": {
+                  "JobName": "YourGlueJobName"
+                },
+                "End": true
+              }
+            }
+          }
+
+  DownloadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: download_and_upload.lambda_handler
+      Runtime: python3.11
+      Environment:
+        Variables:
+          BUCKET_NAME: aws-data-platform-20250607
+```
+
+---
+
+### ✅ ステップ6：ローカルテスト
+
+```bash
+sam build
+sam local invoke DownloadFunction
+```
+
+---
+
+### ✅ ステップ7：デプロイ
+
+```bash
+sam deploy --guided
+```
+
+---
+
+### ✅ ステップ8：Athena設定
+
+Glue Data CatalogにParquetテーブルを作成。以下のDDLを実行：
+
+```sql
+CREATE EXTERNAL TABLE mhealth (
+  id string,
+  timestamp timestamp,
+  accel_x double,
+  accel_y double,
+  accel_z double
+)
+STORED AS PARQUET
+LOCATION 's3://aws-data-platform-20250607/processed/';
+```
+
+---
+
+## 📌 補足
+
+- GlueのSpark処理に切り替えることで、大量データへの対応が容易になります。
+- LambdaでParquet変換する場合はメモリ制限に注意（512MB〜1GB推奨）。
+</file>
+
+</files>

@@ -48,8 +48,9 @@ s3://aws-data-platform-20250607/
 
 - Lambda①：`download_and_upload.lambda_handler`
 - Lambda②：`convert_log_to_parquet.lambda_handler`
-- Step Functions：上記LambdaとGlueジョブを連携
+- Step Functions：Lambda①→Lambda②→Glueジョブの順次実行を制御
 - 環境変数：`BUCKET_NAME=aws-data-platform-20250607`
+- EventBridge：Step Functionsの定時実行トリガー
 
 ---
 
@@ -99,11 +100,13 @@ def lambda_handler(event, context):
 
 ## ✅ Lambda②（log → Parquet変換）
 
-- **入力**：S3 `/raw/*.log`
+- **入力**：Step Functions経由での実行（S3イベントトリガーではない）
 - **処理**：
+  - S3 `/raw/` フォルダ内の全ての`.log`ファイルをスキャン
   - `pandas` でログを DataFrame として読み込み（区切り文字に応じて処理）
   - Parquet形式に変換 → `/stage/` に保存
 - **依存ライブラリ**：`pandas`, `pyarrow`, `boto3`
+- **トリガー**：Step Functions State Machine
 
 ---
 

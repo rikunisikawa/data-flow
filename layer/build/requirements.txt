@@ -1,0 +1,6 @@
+boto3
+pandas
+pyarrow
+kaggle
+numpy==1.26.4
+io

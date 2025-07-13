@@ -33,17 +33,12 @@ Resources:
           KAGGLE_KEY: !Ref KaggleKey
       Layers:
         - !Ref KaggleApiLayer
-      Events:
-        Schedule:
-          Type: Schedule
-          Properties:
-            Schedule: rate(1 day)
 
-  ConvertCsvToParquetFunction:
+  ConvertLogToParquetFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: convert_csv_to_parquet/
-      Handler: convert_csv_to_parquet.lambda_handler
+      CodeUri: convert_log_to_parquet/
+      Handler: convert_log_to_parquet.lambda_handler
       Runtime: python3.11
       Architectures:
         - x86_64
@@ -53,13 +48,33 @@ Resources:
       Layers:
         - !Ref KaggleApiLayer
 
+  DataProcessingStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: state_machine/data_processing.asl.json
+      DefinitionSubstitutions:
+        DownloadAndUploadFunctionArn: !GetAtt DownloadAndUploadFunction.Arn
+        ConvertLogToParquetFunctionArn: !GetAtt ConvertLogToParquetFunction.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref DownloadAndUploadFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ConvertLogToParquetFunction
+      Events:
+        DailySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+
   KaggleApiLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      ContentUri: layer/
+      ContentUri: layer/build
       CompatibleRuntimes:
         - python3.11
       LicenseInfo: MIT
+    Metadata:
+      BuildMethod: makefile
     Description: Kaggle API dependencies layer
 
 Outputs:
