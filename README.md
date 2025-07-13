@@ -94,7 +94,7 @@ def lambda_handler(event, context):
 
 ---
 
-### ✅ ステップ3：Lambda②（CSV → Parquet） or Glue① を作成
+### ✅ ステップ3：Lambda②（log → Parquet） or Glue① を作成
 
 **Lambda版：`pandas + pyarrow` を使う**
 

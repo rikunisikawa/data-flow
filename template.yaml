@@ -47,6 +47,7 @@ Resources:
           BUCKET_NAME: aws-data-platform-20250607
       Layers:
         - !Ref KaggleApiLayer
+      MemorySize: 1024
 
   DataProcessingStateMachine:
     Type: AWS::Serverless::StateMachine
