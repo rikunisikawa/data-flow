@@ -3,7 +3,7 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   aws-data-platform
 
-  Sample SAM Template for aws-data-platform
+  SAM template for the data processing pipeline.
 
 Parameters:
   KaggleUsername:
@@ -12,6 +12,10 @@ Parameters:
   KaggleKey:
     Type: String
     Description: Kaggle Key
+  BucketName:
+    Type: String
+    Default: aws-data-platform-20250607
+    Description: S3 bucket for the data pipeline
 
 Globals:
   Function:
@@ -28,7 +32,7 @@ Resources:
         - x86_64
       Environment:
         Variables:
-          BUCKET_NAME: aws-data-platform-20250607
+          BUCKET_NAME: !Ref BucketName
           KAGGLE_USERNAME: !Ref KaggleUsername
           KAGGLE_KEY: !Ref KaggleKey
       Layers:
@@ -44,7 +48,7 @@ Resources:
         - x86_64
       Environment:
         Variables:
-          BUCKET_NAME: aws-data-platform-20250607
+          BUCKET_NAME: !Ref BucketName
       Layers:
         - !Ref KaggleApiLayer
       MemorySize: 1024
@@ -56,11 +60,15 @@ Resources:
       DefinitionSubstitutions:
         DownloadAndUploadFunctionArn: !GetAtt DownloadAndUploadFunction.Arn
         ConvertLogToParquetFunctionArn: !GetAtt ConvertLogToParquetFunction.Arn
+        GlueJobName: !Ref MHealthGlueJob
+        BucketName: !Ref BucketName
       Policies:
         - LambdaInvokePolicy:
             FunctionName: !Ref DownloadAndUploadFunction
         - LambdaInvokePolicy:
             FunctionName: !Ref ConvertLogToParquetFunction
+        - GlueStartJobRunPolicy:
+            JobName: !Ref MHealthGlueJob
       Events:
         DailySchedule:
           Type: Schedule
@@ -78,13 +86,46 @@ Resources:
       BuildMethod: makefile
     Description: Kaggle API dependencies layer
 
+  MHealthGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: mhealth-data-processing-job
+      Role: !GetAtt GlueJobRole.Arn
+      Command:
+        Name: glueetl
+        ScriptLocation: !Sub "s3://${BucketName}/scripts/glue_job.py"
+        PythonVersion: '3'
+      DefaultArguments:
+        "--job-language": "python"
+        "--enable-metrics": ""
+      GlueVersion: "4.0"
+      WorkerType: G.1X
+      NumberOfWorkers: 2
+
+  GlueJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - glue.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: GlueS3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:PutObject"
+                Resource: !Sub "arn:aws:s3:::${BucketName}/*"
+
 Outputs:
-  HelloWorldApi:
-    Description: "API Gateway endpoint URL for Prod stage"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
-  HelloWorldFunction:
-    Description: "Hello World Lambda Function ARN"
-    Value: !GetAtt HelloWorldFunction.Arn
-  HelloWorldFunctionIamRole:
-    Description: "Implicit IAM Role created for Hello World function"
-    Value: !GetAtt HelloWorldFunctionRole.Arn
+  StateMachineArn:
+    Description: "Data Processing State Machine ARN"
+    Value: !Ref DataProcessingStateMachine

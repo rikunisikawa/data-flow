@@ -27,6 +27,25 @@
         "Payload.$": "$"
       },
       "ResultPath": "$.convertResult",
+      "Next": "StartGlueJob",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "FailState",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "StartGlueJob": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "${GlueJobName}",
+        "Arguments": {
+          "--S3_INPUT_PATH": "s3://${BucketName}/stage/",
+          "--S3_OUTPUT_PATH": "s3://${BucketName}/processed/"
+        }
+      },
       "Next": "SuccessState",
       "Catch": [
         {

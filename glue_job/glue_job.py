@@ -4,9 +4,10 @@ from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
 from awsglue.context import GlueContext
 from awsglue.job import Job
+from awsglue.dynamicframe import DynamicFrame
+from pyspark.sql.functions import col, regexp_extract
 
-## @params: JOB_NAME
-args = getResolvedOptions(sys.argv, ['JOB_NAME'])
+args = getResolvedOptions(sys.argv, ['JOB_NAME', 'S3_INPUT_PATH', 'S3_OUTPUT_PATH'])
 
 sc = SparkContext()
 glueContext = GlueContext(sc)
@@ -14,28 +15,59 @@ spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
 
-## @type: datasource
-## @args: [database, table_name, transformation_ctx]
-## @return: datasource0
-## @inputs: []
-datasource0 = glueContext.create_dynamic_frame.from_catalog(database="default", table_name="stage", transformation_ctx="datasource0")
+# S3からParquetファイルを読み込む
+datasource = glueContext.create_dynamic_frame.from_options(
+    connection_type="s3",
+    connection_options={"paths": [args['S3_INPUT_PATH']]},
+    format="parquet",
+    transformation_ctx="datasource"
+)
 
-## @type: applymapping
-## @args: [mappings, transformation_ctx]
-## @return: applymapping1
-## @inputs: [datasource0]
-applymapping1 = ApplyMapping.apply(frame = datasource0, mappings = [("id", "string", "id", "string"), ("timestamp", "string", "timestamp", "timestamp"), ("accel_x", "double", "accel_x", "double"), ("accel_y", "double", "accel_y", "double"), ("accel_z", "double", "accel_z", "double")], transformation_ctx = "applymapping1")
+# カラム名を定義
+column_names = [
+    "chest_accel_x", "chest_accel_y", "chest_accel_z",
+    "chest_ecg_lead1", "chest_ecg_lead2",
+    "left_ankle_accel_x", "left_ankle_accel_y", "left_ankle_accel_z",
+    "left_ankle_gyro_x", "left_ankle_gyro_y", "left_ankle_gyro_z",
+    "left_ankle_mag_x", "left_ankle_mag_y", "left_ankle_mag_z",
+    "right_lower_arm_accel_x", "right_lower_arm_accel_y", "right_lower_arm_accel_z",
+    "right_lower_arm_gyro_x", "right_lower_arm_gyro_y", "right_lower_arm_gyro_z",
+    "right_lower_arm_mag_x", "right_lower_arm_mag_y", "right_lower_arm_mag_z",
+    "activity_label"
+]
 
-## @type: selectfields
-## @args: [paths, transformation_ctx]
-## @return: selectfields2
-## @inputs: [applymapping1]
-selectfields2 = SelectFields.apply(frame = applymapping1, paths = ["id", "timestamp", "accel_x", "accel_y", "accel_z"], transformation_ctx = "selectfields2")
+# 元のDataFrameのカラム数に合わせてカラム名を調整
+original_columns = [f"`_{i}`" for i in range(len(column_names))]
+df = datasource.toDF()
 
-## @type: writedataframe
-## @args: [frame, transformation_ctx]
-## @return: writeparquet3
-## @inputs: [selectfields2]
-writeparquet3 = glueContext.write_dynamic_frame.from_options(frame = selectfields2, connection_type = "s3", connection_options = {"path": "s3://aws-data-platform-20250607/processed/"}, format = "parquet", transformation_ctx = "writeparquet3")
+# カラム名を変更
+for old_name, new_name in zip(original_columns, column_names):
+    df = df.withColumnRenamed(old_name, new_name)
+
+# ファイル名からuser_idを抽出
+df = df.withColumn("user_id", regexp_extract(col("input_file_name"), r"mHealth_subject(\d+)\.log", 1))
+
+# 必要なカラムを選択
+selected_columns = [
+    "user_id",
+    "activity_label",
+    "chest_accel_x", "chest_accel_y", "chest_accel_z",
+    "left_ankle_accel_x", "left_ankle_accel_y", "left_ankle_accel_z",
+    "right_lower_arm_accel_x", "right_lower_arm_accel_y", "right_lower_arm_accel_z"
+]
+
+df_selected = df.select(*selected_columns)
+
+# DynamicFrameに変換
+dynamic_frame = DynamicFrame.fromDF(df_selected, glueContext, "dynamic_frame")
+
+# データをS3に書き込む
+glueContext.write_dynamic_frame.from_options(
+    frame=dynamic_frame,
+    connection_type="s3",
+    connection_options={"path": args['S3_OUTPUT_PATH']},
+    format="parquet",
+    transformation_ctx="datasink"
+)
 
 job.commit()

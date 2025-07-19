@@ -20,3 +20,5 @@ layer/python/
 # VSCodeなどのエディタ系
 .vscode/
 .idea/
+
+samconfig.toml

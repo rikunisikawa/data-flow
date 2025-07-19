@@ -1,225 +1,157 @@
-# data-flow
-データ基盤全般を構築
+# ✅ AI向け指示用仕様書：SAMを用いたデータ基盤開発
 
-# ✅ データ基盤構築フロー設計仕様書
+## 🎯 開発目的
 
-## 🎯 目的
-
-KaggleHub経由で取得したmHealthデータセットをETL処理し、Athenaで分析可能な形式（Parquet＋適切なスキーマ）でS3に格納する自動化データ基盤を構築する。
+- Kaggle公式API経由で取得した**mHealthデータセット（logファイル）**をETL処理し、**Parquet形式でS3に格納**。
+- それをAthenaで分析できるようにする自動化データ基盤を、**AWS SAM（Serverless Application Model）**で構築する。
 
 ---
 
-## 🗺️ 全体構成図（処理フロー）
+## 🔧 技術スタック・前提
 
-**EventBridge Scheduler**  
-→ 定時実行（例：毎日8:00）  
-→ **Step Functions**をトリガー
-
-**Step Functions ステップ**
-1. Lambda① → データ取得・S3保存  
-2. Lambda② または Glue① → CSV → Parquet変換  
-3. Glue② → データ整形 → S3（分析用パス）に保存
-
-**Athena**  
-→ Glue Data CatalogによりS3上のデータにクエリ可能
-
----
-
-## 📦 使用サービスと役割
-
-| サービス       | 役割                                       |
-|----------------|--------------------------------------------|
-| EventBridge    | 定時トリガー                               |
-| Step Functions | 処理フロー制御                             |
-| Lambda①        | KaggleHubでデータ取得し、S3保存            |
-| Lambda② / Glue①| CSV → Parquet変換                          |
-| Glue②          | データ変換・整形・カタログ更新             |
-| Athena         | クエリ・分析実行                           |
+- **ランタイム**：Python 3.11
+- **ツール**：AWS SAM, Docker, AWS CLI, kaggle公式API
+- **AWSサービス**：
+  - Lambda（Python）
+  - Step Functions（ETLフロー制御）
+  - Glue（整形＆カタログ更新）
+  - EventBridge（定時実行）
+  - S3（データ保存）
+  - Athena（分析）
+  - Glue Data Catalog（メタデータ管理）
 
 ---
 
-## 🧱 S3 構成例
+## 📁 S3構成と用途
 
 ```
 s3://aws-data-platform-20250607/
-├── raw/             ← Lambda①保存 (CSV)
-├── stage/           ← Lambda②またはGlue① (Parquet)
-└── processed/       ← Glue②出力 (整形済Parquet)
+├── raw/        # Lambda① が保存（logファイル）
+├── stage/      # Lambda② or Glue① が保存（Parquet）
+└── processed/  # Glue② が保存（整形後Parquet）
 ```
 
 ---
 
-## 💻 ローカル開発 & デプロイ手順
+## 🔄 データ処理フロー（ETL）
 
-### ✅ ステップ0：前提ツールのインストール
-
-- Python 3.11+
-- Docker
-- AWS CLI & `aws configure`
-- AWS SAM CLI (`brew install aws/tap/aws-sam-cli`)
-- `kagglehub` インストール：`pip install kagglehub`
-
----
-
-### ✅ ステップ1：SAM プロジェクト作成
-
-```bash
-sam init
-# → runtime: python3.11
-# → template: Hello World Example
-```
+| ステップ | 処理内容                           | 実装先        |
+|----------|------------------------------------|----------------|
+| ①        | Kaggle APIからlogファイル取得→S3保存 | Lambda①       |
+| ②        | log → Parquet形式に変換             | Lambda②またはGlue① |
+| ③        | データ整形（カラム名統一など）       | Glue②         |
+| ④        | Glue Catalog登録 & Athena対応     | Glue②         |
 
 ---
 
-### ✅ ステップ2：Lambda① 作成（データ取得＆S3保存）
+## 📦 SAM定義リソース（template.yaml）
+
+- Lambda①：`download_and_upload.lambda_handler`
+- Lambda②：`convert_log_to_parquet.lambda_handler`
+- Step Functions：Lambda①→Lambda②→Glueジョブの順次実行を制御
+- 環境変数：`BUCKET_NAME=aws-data-platform-20250607`
+- EventBridge：Step Functionsの定時実行トリガー
+
+---
+
+## ✅ Lambda①（logダウンロード → S3保存）
+
+- **入力**：なし（定時実行）
+- **処理**：
+  - `kaggle` 公式APIでmHealth logファイルをダウンロード
+  - S3 `/raw/` にアップロード
+- **依存ライブラリ**：`kaggle`
+- **認証**：`kaggle.json` をSecrets ManagerやParameter Storeに保存し、Lambda起動時に取得
+- **共通ライブラリ**：`boto3`
+
+**処理例コード**
 
 ```python
-# lambda/download_and_upload.py
-import json
 import boto3
-import kagglehub
-from pathlib import Path
 import os
-
-s3 = boto3.client('s3')
-BUCKET = os.environ['BUCKET_NAME']
+import zipfile
+from kaggle.api.kaggle_api_extended import KaggleApi
 
 def lambda_handler(event, context):
-    path = kagglehub.dataset_download("nirmalsankalana/mhealth-dataset-data-set")
-    local_path = Path(path)
-    for file in local_path.glob("**/*.csv"):
-        s3.upload_file(str(file), BUCKET, f"raw/{file.name}")
-    return {"status": "uploaded", "files": len(list(local_path.glob('*.csv')))}
+    api = KaggleApi()
+    api.authenticate()
+
+    dataset = 'nirmalsankalana/mhealth-dataset-data-set'
+    download_path = '/tmp/mhealth.zip'
+    extract_path = '/tmp/mhealth'
+
+    api.dataset_download_files(dataset, path='/tmp', unzip=False)
+
+    with zipfile.ZipFile(download_path, 'r') as zip_ref:
+        zip_ref.extractall(extract_path)
+
+    s3 = boto3.client('s3')
+    bucket = os.environ['BUCKET_NAME']
+
+    for root, dirs, files in os.walk(extract_path):
+        for file in files:
+            if file.endswith(".log"):
+                file_path = os.path.join(root, file)
+                s3_key = f'raw/{file}'
+                s3.upload_file(file_path, bucket, s3_key)
 ```
 
 ---
 
-### ✅ ステップ3：Lambda②（log → Parquet） or Glue① を作成
+## ✅ Lambda②（log → Parquet変換）
 
-**Lambda版：`pandas + pyarrow` を使う**
-
-```bash
-pip install pandas pyarrow -t lambda/convert/
-```
-
-```python
-# lambda/convert_log_to_parquet.py
-import boto3
-import pandas as pd
-import pyarrow.parquet as pq
-import pyarrow as pa
-import os
-from io import BytesIO
-
-s3 = boto3.client("s3")
-BUCKET = os.environ['BUCKET_NAME']
-
-def lambda_handler(event, context):
-    response = s3.list_objects_v2(Bucket=BUCKET, Prefix='raw/')
-    for obj in response.get('Contents', []):
-        key = obj['Key']
-        if key.endswith('.csv'):
-            csv_obj = s3.get_object(Bucket=BUCKET, Key=key)
-            df = pd.read_csv(csv_obj['Body'])
-            table = pa.Table.from_pandas(df)
-            parquet_buffer = BytesIO()
-            pq.write_table(table, parquet_buffer)
-            s3.put_object(Bucket=BUCKET, Key=key.replace("raw/", "stage/").replace(".csv", ".parquet"),
-                          Body=parquet_buffer.getvalue())
-```
+- **入力**：Step Functions経由での実行（S3イベントトリガーではない）
+- **処理**：
+  - S3 `/raw/` フォルダ内の全ての`.log`ファイルをスキャン
+  - `pandas` でログを DataFrame として読み込み（区切り文字に応じて処理）
+  - Parquet形式に変換 → `/stage/` に保存
+- **依存ライブラリ**：`pandas`, `pyarrow`, `boto3`
+- **トリガー**：Step Functions State Machine
 
 ---
 
-### ✅ ステップ4：Glue② 作成（整形・カタログ化）
+## ✅ Glue②（整形・変換・カタログ）
 
-- データの型変換（例：timestamp変換、カラム名正規化）
-- `processed/` へParquet形式で保存
-- Glue Data Catalog にテーブル作成
-
----
-
-### ✅ ステップ5：Step Functions 定義（template.yaml）
-
-```yaml
-Resources:
-  Workflow:
-    Type: AWS::StepFunctions::StateMachine
-    Properties:
-      DefinitionString:
-        Fn::Sub: |
-          {
-            "StartAt": "DownloadCSV",
-            "States": {
-              "DownloadCSV": {
-                "Type": "Task",
-                "Resource": "${DownloadFunction.Arn}",
-                "Next": "ConvertParquet"
-              },
-              "ConvertParquet": {
-                "Type": "Task",
-                "Resource": "${ConvertFunction.Arn}",
-                "Next": "GlueTransform"
-              },
-              "GlueTransform": {
-                "Type": "Task",
-                "Resource": "arn:aws:states:::glue:startJobRun.sync",
-                "Parameters": {
-                  "JobName": "YourGlueJobName"
-                },
-                "End": true
-              }
-            }
-          }
-
-  DownloadFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: lambda/
-      Handler: download_and_upload.lambda_handler
-      Runtime: python3.11
-      Environment:
-        Variables:
-          BUCKET_NAME: aws-data-platform-20250607
-```
+- **入力**：S3 `/stage/*.parquet`
+- **処理**：
+  - タイムスタンプ型変換
+  - カラム名の正規化（例：空白・大文字 → snake_case）
+- **出力**：S3 `/processed/`
+- **カタログ**：Glue Data Catalog に `mhealth` テーブル作成
 
 ---
 
-### ✅ ステップ6：ローカルテスト
-
-```bash
-sam build
-sam local invoke DownloadFunction
-```
-
----
-
-### ✅ ステップ7：デプロイ
-
-```bash
-sam deploy --guided
-```
-
----
-
-### ✅ ステップ8：Athena設定
-
-Glue Data CatalogにParquetテーブルを作成。以下のDDLを実行：
+## ✅ Athena DDL（想定スキーマ）
 
 ```sql
 CREATE EXTERNAL TABLE mhealth (
-  id string,
+  user_id string,
+  activity string,
   timestamp timestamp,
-  accel_x double,
-  accel_y double,
-  accel_z double
+  sensor1 double,
+  sensor2 double,
+  sensor3 double
 )
 STORED AS PARQUET
 LOCATION 's3://aws-data-platform-20250607/processed/';
 ```
 
+※logファイルの具体的な形式に応じてスキーマは変更
+
 ---
 
-## 📌 補足
+## 🧪 テスト条件
 
-- GlueのSpark処理に切り替えることで、大量データへの対応が容易になります。
-- LambdaでParquet変換する場合はメモリ制限に注意（512MB〜1GB推奨）。
+- Lambda関数は `sam local invoke` でローカルテストする
+- Glue②は最初にサンプルデータでテストしてAthenaでSELECT確認
+- 全体のStep Functionsは `sam deploy` 後、EventBridgeトリガーで動作確認
+
+---
+
+## ✅ ローカルで依存ライブラリインストール
+
+```bash
+pip install -r convert_log_to_parquet/requirements.txt --target convert_log_to_parquet
+```
+
+---
