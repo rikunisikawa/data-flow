@@ -29,6 +29,7 @@ jobs:
             コード変更が完了したら、以下の区切り線を使って、この変更を説明するPull Requestのタイトルと本文を生成してください。
 
             **重要**: `.github/workflows`ディレクトリ内のファイルは絶対に編集しないでください。
+            **重要**: Geminiで行った実装内容と理由を`.github/${今日の日付}_${PR名}.md`としてMarkdownで記録してください。日付は`YYYYMMDD`形式、PR名はスネークケースに変換してください。
 
             Issue Title: ${{ github.event.issue.title }}
             Issue Body: ${{ github.event.issue.body }}
