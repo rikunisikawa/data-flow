@@ -1,0 +1,7 @@
+pytest
+pytest-mock
+boto3
+moto[s3]
+pandas
+pyarrow
+kaggle

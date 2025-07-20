@@ -4,18 +4,51 @@ import pandas as pd
 import pyarrow
 import pyarrow.parquet as pq
 import io
+import logging
 
-BUCKET_NAME = os.environ.get('BUCKET_NAME')
-S3_CLIENT = boto3.client('s3')
+# Logger setup
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    log_handler = logging.FileHandler('logs/convert_log_to_parquet.log')
+    log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    log_handler.setFormatter(log_formatter)
+    logger.addHandler(log_handler)
+
+def get_s3_client():
+    return boto3.client('s3')
+
+# Define column names based on the dataset description
+COLUMN_NAMES = [
+    'chest_acc_x', 'chest_acc_y', 'chest_acc_z',
+    'chest_ecg_1', 'chest_ecg_2',
+    'left_ankle_acc_x', 'left_ankle_acc_y', 'left_ankle_acc_z',
+    'left_ankle_gyro_x', 'left_ankle_gyro_y', 'left_ankle_gyro_z',
+    'left_ankle_mag_x', 'left_ankle_mag_y', 'left_ankle_mag_z',
+    'right_lower_arm_acc_x', 'right_lower_arm_acc_y', 'right_lower_arm_acc_z',
+    'right_lower_arm_gyro_x', 'right_lower_arm_gyro_y', 'right_lower_arm_gyro_z',
+    'right_lower_arm_mag_x', 'right_lower_arm_mag_y', 'right_lower_arm_mag_z',
+    'activity_label'
+]
 
 def lambda_handler(event, context):
     """
-    S3に保存されたlogファイルをParquet形式に変換し、S3に保存するLambda関数
-    Step Functions経由で実行される
+    Converts log files from S3 to Parquet format and saves them back to S3.
+    Triggered via Step Functions.
     """
+    bucket_name = os.environ.get('BUCKET_NAME')
+    if not bucket_name:
+        logger.error("Environment variable BUCKET_NAME not set")
+        return {
+            'statusCode': 500,
+            'body': 'Environment variable BUCKET_NAME not set'
+        }
+
+    s3_client = get_s3_client()
+    
     try:
-        # S3 raw/フォルダ内の全ての.logファイルを取得
-        response = S3_CLIENT.list_objects_v2(Bucket=BUCKET_NAME, Prefix='raw/')
+        logger.info(f"Listing objects in s3://{bucket_name}/raw/")
+        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix='raw/')
         
         converted_files = []
         
@@ -23,32 +56,32 @@ def lambda_handler(event, context):
             for obj in response['Contents']:
                 key = obj['Key']
                 if key.endswith('.log'):
-                    # logファイルをダウンロード
-                    log_file = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=key)
+                    logger.info(f"Processing file: {key}")
+                    
+                    log_file = s3_client.get_object(Bucket=bucket_name, Key=key)
                     log_content = log_file['Body'].read()
 
-                    # pandasでlogファイルを読み込み
-                    df = pd.read_csv(io.BytesIO(log_content), sep='\t', header=None)
+                    # Use StringIO to handle text data, and specify separator and header
+                    df = pd.read_csv(io.StringIO(log_content.decode('utf-8')), sep=r'\s+', header=None, names=COLUMN_NAMES)
 
-                    # Parquet形式に変換
                     table = pyarrow.Table.from_pandas(df)
-                    parquet_buffer = pyarrow.BufferOutputStream()
+                    parquet_buffer = io.BytesIO()
                     pq.write_table(table, parquet_buffer)
 
-                    # ParquetファイルをS3にアップロード
                     parquet_key = key.replace('raw/', 'stage/').replace('.log', '.parquet')
-                    S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=parquet_key, Body=parquet_buffer.getvalue().to_pybytes())
+                    s3_client.put_object(Bucket=bucket_name, Key=parquet_key, Body=parquet_buffer.getvalue())
                     
                     converted_files.append(parquet_key)
-                    print(f"Uploaded {parquet_key} to s3://{BUCKET_NAME}/{parquet_key}")
+                    logger.info(f"Successfully converted and uploaded {parquet_key}")
 
+        logger.info(f"Successfully converted {len(converted_files)} files.")
         return {
             'statusCode': 200,
             'body': f'Successfully converted {len(converted_files)} log files to Parquet',
             'convertedFiles': converted_files
         }
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error processing files: {e}", exc_info=True)
         return {
             'statusCode': 500,
             'body': f'Error: {e}'
