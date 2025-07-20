@@ -1,0 +1,11 @@
+version: 2
+
+models:
+  - name: cleaned_activities
+    columns:
+      - name: id
+        tests:
+          - not_null
+      - name: timestamp
+        tests:
+          - not_null
