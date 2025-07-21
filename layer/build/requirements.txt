@@ -1,5 +1,5 @@
 boto3
 pandas
-pyarrow
+pyarrow==14.0.2
 kaggle
 numpy==1.26.4
