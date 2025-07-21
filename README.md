@@ -155,3 +155,53 @@ pip install -r convert_log_to_parquet/requirements.txt --target convert_log_to_p
 ```
 
 ---
+
+## Glue Crawlerで作成したテーブル
+
+```sql
+CREATE EXTERNAL TABLE `stage`(
+  `chest_acc_x` double, 
+  `chest_acc_y` double, 
+  `chest_acc_z` double, 
+  `chest_ecg_1` double, 
+  `chest_ecg_2` double, 
+  `left_ankle_acc_x` double, 
+  `left_ankle_acc_y` double, 
+  `left_ankle_acc_z` double, 
+  `left_ankle_gyro_x` double, 
+  `left_ankle_gyro_y` double, 
+  `left_ankle_gyro_z` double, 
+  `left_ankle_mag_x` double, 
+  `left_ankle_mag_y` double, 
+  `left_ankle_mag_z` double, 
+  `right_lower_arm_acc_x` double, 
+  `right_lower_arm_acc_y` double, 
+  `right_lower_arm_acc_z` double, 
+  `right_lower_arm_gyro_x` double, 
+  `right_lower_arm_gyro_y` double, 
+  `right_lower_arm_gyro_z` double, 
+  `right_lower_arm_mag_x` double, 
+  `right_lower_arm_mag_y` double, 
+  `right_lower_arm_mag_z` double, 
+  `activity_label` bigint)
+ROW FORMAT SERDE 
+  'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe' 
+STORED AS INPUTFORMAT 
+  'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat' 
+OUTPUTFORMAT 
+  'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'
+LOCATION
+  's3://aws-data-platform-20250607/stage/'
+TBLPROPERTIES (
+  'CRAWL_RUN_ID'='56db49bd-14ea-438b-83ee-00f83db72835', 
+  'CrawlerSchemaDeserializerVersion'='1.0', 
+  'CrawlerSchemaSerializerVersion'='1.0', 
+  'UPDATED_BY_CRAWLER'='mhealth-crawler', 
+  'averageRecordSize'='113', 
+  'classification'='parquet', 
+  'compressionType'='none', 
+  'objectCount'='1', 
+  'recordCount'='161280', 
+  'sizeKey'='15924480', 
+  'typeOfData'='file')
+```
