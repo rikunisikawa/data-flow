@@ -1,0 +1,16 @@
+1. 以下2つの環境を確認する（sam build, local invokeの成功）
+①	Kaggle APIからlogファイル取得→S3保存	Lambda①
+②	log → Parquet形式に変換	Lambda②
+
+pytestをcicdに追加
+sam build後にlocak invoke実行
+state machineとathena or glue変換がうまくいくことを確認
+
+2. dbt導入
+
+3. テストコード作成
+
+
+
+sam local invoke DownloadAndUploadFunction --env-vars env.json
+sam local invoke ConvertLogToParquetFunction --env-vars env.json
