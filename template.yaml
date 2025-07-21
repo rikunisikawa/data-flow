@@ -19,7 +19,7 @@ Parameters:
 
 Globals:
   Function:
-    Timeout: 120
+    Timeout: 300
 
 Resources:
   DownloadAndUploadFunction:
@@ -37,6 +37,7 @@ Resources:
           KAGGLE_KEY: !Ref KaggleKey
       Layers:
         - !Ref KaggleApiLayer
+      MemorySize: 1024
 
   ConvertLogToParquetFunction:
     Type: AWS::Serverless::Function
