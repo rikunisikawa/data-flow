@@ -62,7 +62,18 @@ def lambda_handler(event, context):
                     log_content = log_file['Body'].read()
 
                     # Use StringIO to handle text data, and specify separator and header
-                    df = pd.read_csv(io.StringIO(log_content.decode('utf-8')), sep=r'\s+', header=None, names=COLUMN_NAMES)
+                    df = pd.read_csv(io.StringIO(log_content.decode('utf-8')), sep=r'\s+', header=None)
+
+                    # Check if the number of parsed columns matches the expected number
+                    if len(df.columns) != len(COLUMN_NAMES):
+                        logger.warning(
+                            f"Skipping file {key}: Column count mismatch. "
+                            f"Expected {len(COLUMN_NAMES)}, but parsed {len(df.columns)}. "
+                            "Check for delimiters in the source file."
+                        )
+                        continue
+
+                    df.columns = COLUMN_NAMES
 
                     table = pyarrow.Table.from_pandas(df)
                     parquet_buffer = io.BytesIO()
