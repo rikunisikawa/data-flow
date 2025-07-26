@@ -77,7 +77,13 @@ jobs:
       - name: Get branch name
         id: get_branch
         run: |
-          BRANCH_NAME="feature/issue-${{ github.event.issue.number }}"
+          if [[ -n "${{ github.event.issue.pull_request }}" ]]; then
+            # This is a pull request comment
+            BRANCH_NAME=$(gh pr view ${{ github.event.issue.number }} --json headRefName -q .headRefName)
+          else
+            # This is an issue comment
+            BRANCH_NAME="feature/issue-${{ github.event.issue.number }}"
+          fi
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
       - name: Checkout branch
