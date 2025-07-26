@@ -80,23 +80,21 @@ jobs:
           BRANCH_NAME="feature/issue-${{ github.event.issue.number }}"
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
-      - name: Checkout plan branch
+      - name: Checkout branch
         uses: actions/checkout@v3
         with:
-          ref: ${{ steps.get_branch.outputs.branch_name }}
+          ref: "feature/issue-${{ github.event.issue.number }}"
           fetch-depth: 0
-      
+
       - name: Read plan file
         id: read_plan
         run: |
           PLAN_FILE=".github/plans/issue-${{ github.event.issue.number }}.md"
           if [ ! -f "$PLAN_FILE" ]; then
-            echo "Plan file not found in branch ${{ steps.get_branch.outputs.branch_name }}"
-            # 計画ファイルがなくても、Issueのタイトルと本文だけで実行を試みる
+            echo "Plan file not found."
             echo "content=Plan file not found. Proceeding with issue title and body only." >> $GITHUB_OUTPUT
           else
             content=$(cat $PLAN_FILE)
-            # Make content safe for multiline output
             EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
             echo "content<<$EOF" >> $GITHUB_OUTPUT
             echo "$content" >> $GITHUB_OUTPUT
@@ -110,10 +108,10 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
             /background あなたはプロのソフトウェアエンジニアです。以下のIssueと承認された計画に基づき、必要なすべてのコード変更（新規作成、修正、削除など）を行ってください。
-            コード変更が完了したら、以下の区切り線を使って、この変更を説明するPull Requestのタイトルと本文を生成してください。
+            コード変更が完了したら、以下の区切り線を使って、この変更を説明するPull Requestのタイトル、本文、そしてコミットメッセージを生成してください。
 
             **重要**: `.github/workflows`ディレクトリ内のファイルは絶対に編集しないでください。
-            **重要**: Geminiで行った実装内容と理由を`.github/${{ env.TODAY }}_${{ steps.get_branch.outputs.branch_name }}.md`としてMarkdownで記録してください。
+            **重要**: Geminiで行った実装内容と理由を`.github/YYYYMMDD_feature/issue-XXX.md`としてMarkdownで記録してください。
 
             Issue Title: ${{ github.event.issue.title }}
             Issue Body: ${{ github.event.issue.body }}
@@ -124,23 +122,32 @@ jobs:
             ---PR_TITLE---
             [ここにPRのタイトルを記述]
             ---PR_BODY---
-            [ここにPRの本文を記述]
-        env:
-          TODAY: $(date +%Y%m%d)
+            [ここにPRの本文を記述。変更内容の全体像がわかるようにまとめてください。]
+            ---COMMIT_MESSAGE---
+            [ここに機能変更を要約したコミITメッセージを記述]
 
       - name: Extract PR info or set fallback
         id: extract_pr_info
         run: |
           gemini_output="${{ steps.gemini_implement.outputs.result }}"
+          
           pr_title=$(echo "$gemini_output" | awk '/---PR_TITLE---/{flag=1; next} /---PR_BODY---/{flag=0} flag' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-          pr_body=$(echo "$gemini_output" | awk '/---PR_BODY---/{flag=1; next} flag')
-          if [ -z "$pr_title" ]; then pr_title="feat: implement plan for issue #${{ github.event.issue.number }}"; fi
+          pr_body=$(echo "$gemini_output" | awk '/---PR_BODY---/{flag=1; next} /---COMMIT_MESSAGE---/{flag=0} flag')
+          commit_message=$(echo "$gemini_output" | awk '/---COMMIT_MESSAGE---/{flag=1; next} flag')
+
+          if [ -z "$pr_title" ]; then pr_title="feat: implement issue #${{ github.event.issue.number }}"; fi
           if [ -z "$pr_body" ]; then pr_body="Auto-generated PR for issue #${{ github.event.issue.number }}."; fi
+          if [ -z "$commit_message" ]; then commit_message="feat: implement issue #${{ github.event.issue.number }}"; fi
+          
           echo "pr_title=$(echo "$pr_title" | head -n 1)" >> $GITHUB_OUTPUT
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "pr_body<<$EOF" >> $GITHUB_OUTPUT
+          EOF_BODY=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "pr_body<<$EOF_BODY" >> $GITHUB_OUTPUT
           echo "$pr_body" >> $GITHUB_OUTPUT
-          echo "$EOF" >> $GITHUB_OUTPUT
+          echo "$EOF_BODY" >> $GITHUB_OUTPUT
+          EOF_COMMIT=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "commit_message<<$EOF_COMMIT" >> $GITHUB_OUTPUT
+          echo "$commit_message" >> $GITHUB_OUTPUT
+          echo "$EOF_COMMIT" >> $GITHUB_OUTPUT
 
       - name: Commit and push changes
         run: |
@@ -149,7 +156,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [ -n "$(git status --porcelain)" ]; then
             git add -A
-            git commit -m "feat: implement plan for issue #${{ github.event.issue.number }}"
+            git commit -m "${{ steps.extract_pr_info.outputs.commit_message }}"
             git push
           else
             echo "No changes to commit."
@@ -158,7 +165,7 @@ jobs:
       - name: Create Pull Request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH_NAME: ${{ steps.get_branch.outputs.branch_name }}
+          BRANCH_NAME: "feature/issue-${{ github.event.issue.number }}"
           PR_TITLE: ${{ steps.extract_pr_info.outputs.pr_title }}
           PR_BODY: ${{ steps.extract_pr_info.outputs.pr_body }}
         run: |
