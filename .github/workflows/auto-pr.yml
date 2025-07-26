@@ -1,112 +1,164 @@
-name: "Issue → ブランチ＆PR 自動化"
+name: "Plan and Implement on Issue"
 
 on:
   issues:
     types: [opened]
+  issue_comment:
+    types: [created]
 
 jobs:
-  auto-pr:
+  plan:
+    if: github.event_name == 'issues' && github.event.action == 'opened'
     runs-on: ubuntu-latest
     permissions:
-      contents: write        # ブランチ作成・pushに必要
-      pull-requests: write   # PR作成に必要
+      contents: write
+      issues: write
 
     steps:
-      # 1. リポジトリを完全クローン（履歴不足を防止）
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      # 2. Geminiにコード変更とPRメッセージ生成を指示
-      - name: Run Gemini CLI for code and PR message generation
-        id: gemini
+      - name: Create Plan with Gemini
         uses: google-gemini/gemini-cli-action@main
         with:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
-            /background あなたはプロのソフトウェアエンジニアです。以下のIssueの内容を完全に理解し、必要なすべてのコード変更（新規作成、修正、削除など）を行ってください。
-            コード変更が完了したら、以下の区切り線を使って、この変更を説明するPull Requestのタイトルと本文を生成してください。
-
-            **重要**: `.github/workflows`ディレクトリ内のファイルは絶対に編集しないでください。
-            **重要**: Geminiで行った実装内容と理由を`.github/${今日の日付}_${PR名}.md`としてMarkdownで記録してください。日付は`YYYYMMDD`形式、PR名はスネークケースに変換してください。
+            /background あなたは優秀なプロジェクトマネージャー兼ソフトウェアエンジニアです。
+            以下のIssueの内容を分析し、具体的な実装計画を作成してください。
+            計画はマークダウン形式で、`.github/plans/issue-${{ github.event.issue.number }}.md` というファイルに保存してください。
 
             Issue Title: ${{ github.event.issue.title }}
             Issue Body: ${{ github.event.issue.body }}
+
+      - name: Create and push plan branch
+        id: git_work
+        run: |
+          set -e
+          BRANCH_NAME="feature/issue-${{ github.event.issue.number }}"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null; then
+            echo "Branch $BRANCH_NAME already exists."
+            exit 0
+          fi
+
+          git switch -c "$BRANCH_NAME"
+          
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "feat(plan): create plan for issue #${{ github.event.issue.number }}"
+            git push -u origin "$BRANCH_NAME"
+          else
+            echo "No plan file was created by Gemini. Exiting."
+            exit 1
+          fi
+
+      - name: Comment on issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH_NAME: ${{ steps.git_work.outputs.branch_name }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "Plan has been created in branch \`$BRANCH_NAME\`. Please review the plan and comment \`/execute\` to proceed with implementation."
+
+  implement:
+    if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '/execute')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Get branch name
+        id: get_branch
+        run: |
+          BRANCH_NAME="feature/issue-${{ github.event.issue.number }}"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+      - name: Checkout plan branch
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ steps.get_branch.outputs.branch_name }}
+          fetch-depth: 0
+      
+      - name: Read plan file
+        id: read_plan
+        run: |
+          PLAN_FILE=".github/plans/issue-${{ github.event.issue.number }}.md"
+          if [ ! -f "$PLAN_FILE" ]; then
+            echo "Plan file not found in branch ${{ steps.get_branch.outputs.branch_name }}"
+            # 計画ファイルがなくても、Issueのタイトルと本文だけで実行を試みる
+            echo "content=Plan file not found. Proceeding with issue title and body only." >> $GITHUB_OUTPUT
+          else
+            content=$(cat $PLAN_FILE)
+            # Make content safe for multiline output
+            EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+            echo "content<<$EOF" >> $GITHUB_OUTPUT
+            echo "$content" >> $GITHUB_OUTPUT
+            echo "$EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Gemini CLI for implementation
+        id: gemini_implement
+        uses: google-gemini/gemini-cli-action@main
+        with:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          prompt: |
+            /background あなたはプロのソフトウェアエンジニアです。以下のIssueと承認された計画に基づき、必要なすべてのコード変更（新規作成、修正、削除など）を行ってください。
+            コード変更が完了したら、以下の区切り線を使って、この変更を説明するPull Requestのタイトルと本文を生成してください。
+
+            **重要**: `.github/workflows`ディレクトリ内のファイルは絶対に編集しないでください。
+            **重要**: Geminiで行った実装内容と理由を`.github/${{ env.TODAY }}_${{ steps.get_branch.outputs.branch_name }}.md`としてMarkdownで記録してください。
+
+            Issue Title: ${{ github.event.issue.title }}
+            Issue Body: ${{ github.event.issue.body }}
+            
+            Approved Plan:
+            ${{ steps.read_plan.outputs.content }}
 
             ---PR_TITLE---
             [ここにPRのタイトルを記述]
             ---PR_BODY---
             [ここにPRの本文を記述]
-        continue-on-error: true
+        env:
+          TODAY: $(date +%Y%m%d)
 
-      # 3. Geminiの出力からPR情報を抽出し、失敗した場合はフォールバックを設定
       - name: Extract PR info or set fallback
         id: extract_pr_info
         run: |
-          echo "--- Start of Gemini Output ---"
-          echo "${{ steps.gemini.outputs.result }}"
-          echo "--- End of Gemini Output ---"
-
-          gemini_output="${{ steps.gemini.outputs.result }}"
-
-          # awkを使ってPR情報を抽出（前後の空白も除去）
+          gemini_output="${{ steps.gemini_implement.outputs.result }}"
           pr_title=$(echo "$gemini_output" | awk '/---PR_TITLE---/{flag=1; next} /---PR_BODY---/{flag=0} flag' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
           pr_body=$(echo "$gemini_output" | awk '/---PR_BODY---/{flag=1; next} flag')
-
-          # 抽出失敗時のフォールバック処理
-          if [ -z "$pr_title" ]; then
-            echo "Failed to extract PR title. Using issue title as fallback."
-            pr_title="feat: ${{ github.event.issue.title }}"
-          fi
-          if [ -z "$pr_body" ]; then
-            echo "Failed to extract PR body. Using default body as fallback."
-            pr_body="Auto-generated PR for issue #${{ github.event.issue.number }}\n\nGemini was unable to generate a description for this PR."
-          fi
-          
-          # GitHub Actionsの出力変数に設定
+          if [ -z "$pr_title" ]; then pr_title="feat: implement plan for issue #${{ github.event.issue.number }}"; fi
+          if [ -z "$pr_body" ]; then pr_body="Auto-generated PR for issue #${{ github.event.issue.number }}."; fi
           echo "pr_title=$(echo "$pr_title" | head -n 1)" >> $GITHUB_OUTPUT
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "pr_body<<$EOF" >> $GITHUB_OUTPUT
           echo "$pr_body" >> $GITHUB_OUTPUT
           echo "$EOF" >> $GITHUB_OUTPUT
 
-      # 4. ブランチ作成・コミット・プッシュ処理
-      - name: Create and push new branch with generated code
-        id: git_work
+      - name: Commit and push changes
         run: |
           set -e
-          if [ -z "${{ steps.gemini.outputs.branch_name }}" ]; then
-            BRANCH_NAME="feature/issue-${{ github.event.issue.number }}"
-          else
-            BRANCH_NAME="${{ steps.gemini.outputs.branch_name }}"
-          fi
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          echo "Using branch: $BRANCH_NAME"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin
-          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null; then
-            echo "Branch already exists on remote. Switching..."
-            git switch "$BRANCH_NAME"
-            git pull origin "$BRANCH_NAME"
-          else
-            echo "Creating new branch: $BRANCH_NAME"
-            git switch -c "$BRANCH_NAME"
-          fi
           if [ -n "$(git status --porcelain)" ]; then
             git add -A
-            git commit -m "auto: generate code from issue #${{ github.event.issue.number }}"
-            git push -u origin "$BRANCH_NAME"
+            git commit -m "feat: implement plan for issue #${{ github.event.issue.number }}"
+            git push
           else
             echo "No changes to commit."
           fi
 
-      # 5. PR作成（既に存在しない場合のみ）
       - name: Create Pull Request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH_NAME: ${{ steps.git_work.outputs.branch_name }}
+          BRANCH_NAME: ${{ steps.get_branch.outputs.branch_name }}
           PR_TITLE: ${{ steps.extract_pr_info.outputs.pr_title }}
           PR_BODY: ${{ steps.extract_pr_info.outputs.pr_body }}
         run: |
@@ -118,5 +170,5 @@ jobs:
               --body "$PR_BODY" \
               --base main \
               --head "$BRANCH_NAME" \
-              --label "auto-generated"
+              --label "auto-generated,plan-approved"
           fi

@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: mhealth
+    database: awsdatacatalog
+    schema: default
+    tables:
+      - name: raw_activity
