@@ -1,7 +1,6 @@
 name: "Plan and Implement on Issue"
 
 on:
-  workflow_dispatch:
   issues:
     types: [opened]
   issue_comment:
