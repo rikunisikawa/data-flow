@@ -72,6 +72,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Determine issue number and branch name
@@ -187,6 +189,9 @@ jobs:
           else
             echo "No changes to commit."
           fi
+
+      - name: Echo PR Title for debugging
+        run: echo "PR Title will be: ${{ steps.extract_pr_info.outputs.pr_title }}"
 
       - name: Create Pull Request
         env:
