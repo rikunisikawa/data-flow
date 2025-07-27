@@ -97,6 +97,7 @@ jobs:
           fi
 
           BRANCH_NAME="feature/issue-$ISSUE_NUMBER"
+
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
 
