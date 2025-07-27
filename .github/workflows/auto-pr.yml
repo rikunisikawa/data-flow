@@ -74,37 +74,57 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Get branch name
+      - name: Determine issue number and branch name
         id: get_branch
         run: |
+          # Default to the issue number from the event
+          TARGET_NUMBER=${{ github.event.issue.number }}
+          
+          # If the comment is on a PR, get the issue number from the PR title
           if [[ -n "${{ github.event.issue.pull_request }}" ]]; then
-            # This is a pull request comment
-            BRANCH_NAME=$(gh pr view ${{ github.event.issue.number }} --json headRefName -q .headRefName)
+            # Get the issue number from the PR title (assuming format like '... #123')
+            ISSUE_NUMBER=$(gh pr view "$TARGET_NUMBER" --json title -q .title | grep -oE '#[0-9]+' | tr -d '#')
+            if [[ -z "$ISSUE_NUMBER" ]]; then
+              echo "Could not extract issue number from PR title."
+              # Fallback to the headRefName just in case, but this is not ideal
+              BRANCH_NAME=$(gh pr view "$TARGET_NUMBER" --json headRefName -q .headRefName)
+              echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+              echo "issue_number=" >> $GITHUB_OUTPUT # No issue number
+              exit 0
+            fi
           else
-            # This is an issue comment
-            BRANCH_NAME="feature/issue-${{ github.event.issue.number }}"
+            ISSUE_NUMBER=$TARGET_NUMBER
           fi
+
+          BRANCH_NAME="feature/issue-$ISSUE_NUMBER"
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
 
       - name: Checkout branch
         uses: actions/checkout@v3
         with:
-          ref: "feature/issue-${{ github.event.issue.number }}"
+          ref: ${{ steps.get_branch.outputs.branch_name }}
           fetch-depth: 0
 
       - name: Read plan file
         id: read_plan
         run: |
-          PLAN_FILE=".github/plans/issue-${{ github.event.issue.number }}.md"
-          if [ ! -f "$PLAN_FILE" ]; then
-            echo "Plan file not found."
-            echo "content=Plan file not found. Proceeding with issue title and body only." >> $GITHUB_OUTPUT
+          ISSUE_NUMBER=${{ steps.get_branch.outputs.issue_number }}
+          if [[ -z "$ISSUE_NUMBER" ]]; then
+            echo "Issue number not found, cannot read plan file."
+            echo "content=Issue number not found. Proceeding with issue title and body only." >> $GITHUB_OUTPUT
           else
-            content=$(cat $PLAN_FILE)
-            EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-            echo "content<<$EOF" >> $GITHUB_OUTPUT
-            echo "$content" >> $GITHUB_OUTPUT
-            echo "$EOF" >> $GITHUB_OUTPUT
+            PLAN_FILE=".github/plans/issue-$ISSUE_NUMBER.md"
+            if [ ! -f "$PLAN_FILE" ]; then
+              echo "Plan file not found."
+              echo "content=Plan file not found. Proceeding with issue title and body only." >> $GITHUB_OUTPUT
+            else
+              content=$(cat $PLAN_FILE)
+              EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+              echo "content<<$EOF" >> $GITHUB_OUTPUT
+              echo "$content" >> $GITHUB_OUTPUT
+              echo "$EOF" >> $GITHUB_OUTPUT
+            fi
           fi
 
       - name: Run Gemini CLI for implementation
@@ -126,7 +146,7 @@ jobs:
             ${{ steps.read_plan.outputs.content }}
 
             ---PR_TITLE---
-            [ここにPRのタイトルを記述]
+            [ここにPRのタイトルを記述。必ず "issue #${{ steps.get_branch.outputs.issue_number }}" を含めてください]
             ---PR_BODY---
             [ここにPRの本文を記述。変更内容の全体像がわかるようにまとめてください。]
             ---COMMIT_MESSAGE---
@@ -141,9 +161,9 @@ jobs:
           pr_body=$(echo "$gemini_output" | awk '/---PR_BODY---/{flag=1; next} /---COMMIT_MESSAGE---/{flag=0} flag')
           commit_message=$(echo "$gemini_output" | awk '/---COMMIT_MESSAGE---/{flag=1; next} flag')
 
-          if [ -z "$pr_title" ]; then pr_title="feat: implement issue #${{ github.event.issue.number }}"; fi
-          if [ -z "$pr_body" ]; then pr_body="Auto-generated PR for issue #${{ github.event.issue.number }}."; fi
-          if [ -z "$commit_message" ]; then commit_message="feat: implement issue #${{ github.event.issue.number }}"; fi
+          if [ -z "$pr_title" ]; then pr_title="feat: implement issue #${{ steps.get_branch.outputs.issue_number }}"; fi
+          if [ -z "$pr_body" ]; then pr_body="Auto-generated PR for issue #${{ steps.get_branch.outputs.issue_number }}."; fi
+          if [ -z "$commit_message" ]; then commit_message="feat: implement issue #${{ steps.get_branch.outputs.issue_number }}"; fi
           
           echo "pr_title=$(echo "$pr_title" | head -n 1)" >> $GITHUB_OUTPUT
           EOF_BODY=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
@@ -171,7 +191,7 @@ jobs:
       - name: Create Pull Request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH_NAME: "feature/issue-${{ github.event.issue.number }}"
+          BRANCH_NAME: ${{ steps.get_branch.outputs.branch_name }}
           PR_TITLE: ${{ steps.extract_pr_info.outputs.pr_title }}
           PR_BODY: ${{ steps.extract_pr_info.outputs.pr_body }}
         run: |
