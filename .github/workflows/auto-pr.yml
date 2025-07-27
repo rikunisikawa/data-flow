@@ -27,7 +27,7 @@ jobs:
           prompt: |
             /background あなたは優秀なプロジェクトマネージャー兼ソフトウェアエンジニアです。
             以下のIssueの内容を分析し、具体的な実装計画を作成してください。
-            計画はマークダウン形式で、`.github/plans/issue-${{ github.event.issue.number }}.md` というファイルに保存してください。
+            計画はマークダウン形式で、`write_file`ツールを呼び出して `.github/plans/issue-${{ github.event.issue.number }}.md` というファイルに保存してください。
 
             Issue Title: ${{ github.event.issue.title }}
             Issue Body: ${{ github.event.issue.body }}
