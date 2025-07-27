@@ -191,16 +191,17 @@ jobs:
             echo "No changes to commit."
           fi
 
-      - name: Echo PR Title for debugging
-        run: echo "PR Title will be: ${{ steps.extract_pr_info.outputs.pr_title }}"
-
       - name: Create Pull Request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH_NAME: ${{ steps.get_branch.outputs.branch_name }}
-          PR_TITLE: ${{ steps.extract_pr_info.outputs.pr_title }}
-          PR_BODY: ${{ steps.extract_pr_info.outputs.pr_body }}
         run: |
+          BRANCH_NAME="${{ steps.get_branch.outputs.branch_name }}"
+          PR_TITLE="${{ steps.extract_pr_info.outputs.pr_title }}"
+          PR_BODY="${{ steps.extract_pr_info.outputs.pr_body }}"
+
+          echo "Attempting to create PR with title: $PR_TITLE"
+          echo "Attempting to create PR for branch: $BRANCH_NAME"
+
           if gh pr view "$BRANCH_NAME" --json number -q . >/dev/null 2>&1; then
             echo "PR already exists for branch $BRANCH_NAME"
           else
