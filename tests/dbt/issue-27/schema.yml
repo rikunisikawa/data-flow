@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: cleaned_activities
+    description: "Model representing cleaned user activity data after quality checks. This schema assumes the source data has been processed by the `convert_log_to_parquet` script."
+    columns:
+      - name: timestamp
+        description: "The UTC timestamp of the activity."
+        tests:
+          - not_null
+
+      - name: user_id
+        description: "The unique identifier for the user."
+        tests:
+          - not_null
+
+      - name: activity_type
+        description: "The type of activity performed by the user."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['login', 'logout', 'purchase', 'view_page']
