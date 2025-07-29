@@ -5,6 +5,8 @@ on:
     types: [opened]
   issue_comment:
     types: [created]
+  pull_request_review_comment:
+    types: [created]
 
 jobs:
   plan:
@@ -13,7 +15,7 @@ jobs:
     permissions:
       contents: write
       issues: write
-      pull-requests: write # PR作成のために必要
+      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -70,14 +72,14 @@ jobs:
           else
             gh pr create \
               --title "Plan: Implementation plan for issue #${{ github.event.issue.number }}" \
-              --body "This PR contains the implementation plan for issue #${{ github.event.issue.number }}.\n\nPlease review the plan. To proceed with implementation, comment \`/execute\` on the issue with any additional instructions." \
+              --body "This PR contains the implementation plan for issue #${{ github.event.issue.number }}.\n\nPlease review the plan. To proceed with implementation, comment \`/execute\` on the issue or PR (including review comments) with any additional instructions." \
               --base main \
               --head "$BRANCH_NAME" \
               --label "plan"
           fi
 
   implement:
-    if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '/execute')
+    if: contains(github.event.comment.body, '/execute')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -97,18 +99,14 @@ jobs:
 
           # If the comment is on a PR
           if [[ -n "${{ github.event.issue.pull_request }}" ]]; then
-            # Get the branch name from the PR
             PR_NUMBER=${{ github.event.issue.number }}
             BRANCH_NAME=$(gh pr view "$PR_NUMBER" --json headRefName -q .headRefName)
-
-            # Extract the issue number from the branch name (e.g., feature/issue-123 -> 123)
             if [[ "$BRANCH_NAME" =~ ^feature/issue-([0-9]+)$ ]]; then
               ISSUE_NUMBER="${BASH_REMATCH[1]}"
             else
               echo "Could not extract issue number from branch name: $BRANCH_NAME"
               exit 1
             fi
-          # If the comment is directly on an issue
           else
             ISSUE_NUMBER=${{ github.event.issue.number }}
             BRANCH_NAME="feature/issue-$ISSUE_NUMBER"
@@ -150,6 +148,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
             /background あなたはプロのソフトウェアエンジニアです。以下のIssue、最新のコメント、そして承認された計画に基づき、必要なすべてのコード変更を行ってください。
+            コメントはIssue、PR、レビューコメントいずれの場合も反映してください。
             コード変更が完了したら、以下の区切り線を使って、この変更を説明するPull Requestのタイトル、本文、そしてコミットメッセージを生成してください。
 
             **重要**: `.github/workflows`ディレクトリ内のファイルは絶対に編集しないでください。
@@ -212,7 +211,6 @@ jobs:
           PR_TITLE="${{ steps.extract_pr_info.outputs.pr_title }}"
           PR_BODY="${{ steps.extract_pr_info.outputs.pr_body }}"
 
-          # Find the PR number associated with the branch
           PR_NUMBER=$(gh pr list --head "$BRANCH_NAME" --json number -q '.[0].number')
 
           if [ -z "$PR_NUMBER" ]; then
