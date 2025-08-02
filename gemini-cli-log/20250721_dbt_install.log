@@ -1,0 +1,42 @@
+pip install dbt-athena-community 
+
+--初期化
+dbt init data-flow
+
+(.venv) riku_nishikawa@TABLET-75V7LCN2:~/dev/data-flow$ dbt init data-flow
+12:46:11  Running with dbt=1.10.4
+12:46:11  Creating dbt configuration folder at /home/riku_nishikawa/.dbt
+data-flow is not a valid project name.
+Enter a name for your project (letters, digits, underscore): data-flow
+data-flow is not a valid project name.
+Enter a name for your project (letters, digits, underscore): data_flow
+12:47:40  
+Your new dbt project "data_flow" was created!
+
+For more information on how to configure the profiles.yml file,
+please consult the dbt documentation here:
+
+  https://docs.getdbt.com/docs/configure-your-profile
+
+One more thing:
+
+Need help? Don't hesitate to reach out to us via GitHub issues or on Slack:
+
+  https://community.getdbt.com/
+
+Happy modeling!
+
+12:47:40  Setting up your profile.
+Which database would you like to use?
+[1] athena
+
+(Don't see the one you want? https://docs.getdbt.com/docs/available-adapters)
+
+Enter a number: 1
+s3_staging_dir (S3 location to store Athena query results and metadata, e.g. s3://athena_query_result/prefix/): s3://aws-data-platform-20250607/stage/
+s3_data_dir (S3 location where to store data/tables, e.g. s3://bucket_name/prefix/): s3://aws-data-platform-20250607/processed/
+region_name (AWS region of your Athena instance): ap-northeast-1
+schema (Specify the schema (Athena database) to build models into (lowercase only)): processed
+database (Specify the database (Data catalog) to build models into (lowercase only)) [awsdatacatalog]: mhealth
+threads (1 or more) [1]: 2
+13:06:25  Profile data_flow written to /home/riku_nishikawa/.dbt/profiles.yml using target's profile_template.yml and your supplied values. Run 'dbt debug' to validate the connection.
