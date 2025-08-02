@@ -38,9 +38,9 @@ s3://aws-data-platform-20250607/
 | ステップ | 処理内容                           | 実装先              |
 |----------|------------------------------------|---------------------|
 | ①        | Kaggle APIからlogファイル取得→S3保存 | Lambda①             |
-| ②        | log → Parquet形式に変換             | Lambda②またはGlue①  |
-| ③        | データ整形（カラム名統一など）       | Glue②               |
-| ④        | Glue Catalog登録 & Athena対応       | Glue②               |
+| ②        | log → Parquet形式に変換             | Lambda②             |
+| ③        | **dbtによるデータ変換・整形**        | **dbt (Athena経由)** |
+| ④        | **dbtによるデータ品質テスト**        | **dbt (Athena経由)** |
 
 ---
 
@@ -48,7 +48,7 @@ s3://aws-data-platform-20250607/
 
 - Lambda①：`download_and_upload.lambda_handler`
 - Lambda②：`convert_log_to_parquet.lambda_handler`
-- Step Functions：Lambda①→Lambda②→Glueジョブの順次実行を制御
+- Step Functions：Lambda①→Lambda②の順次実行を制御
 - 環境変数：`BUCKET_NAME=aws-data-platform-20250607`
 - EventBridge：Step Functionsの定時実行トリガー
 
@@ -110,33 +110,53 @@ def lambda_handler(event, context):
 
 ---
 
-## ✅ Glue②（整形・変換・カタログ）
+## ✅ dbtによる変換・テスト
 
-- **入力**：S3 `/stage/*.parquet`
+- **入力**：S3 `/stage/*.parquet` （Athenaの外部テーブル経由）
 - **処理**：
-  - タイムスタンプ型変換
-  - カラム名の正規化（例：空白・大文字 → snake_case）
-- **出力**：S3 `/processed/`
-- **カタログ**：Glue Data Catalog に `mhealth` テーブル作成
+  - `dbt run` を実行し、`/stage/`の生データを変換・整形
+  - `dbt test` を実行し、データの品質をテスト
+- **出力**：S3 `/processed/` （dbtがAthena経由でテーブル作成）
+- **カタログ**：dbtがAthena/Glue Data Catalogにモデルに対応するテーブル・ビューを作成
 
 ---
 
-## ✅ Athena DDL（想定スキーマ）
+## ✅ Athena DDL（dbtのソース定義用）
+
+dbtから参照する「生データ」のテーブルを定義します。このDDLは、dbtプロジェクトの外部で一度だけ実行する必要があります。
 
 ```sql
-CREATE EXTERNAL TABLE mhealth (
-  user_id string,
-  activity string,
-  timestamp timestamp,
-  sensor1 double,
-  sensor2 double,
-  sensor3 double
+CREATE DATABASE IF NOT EXISTS stage_mhealth;
+
+CREATE EXTERNAL TABLE stage_mhealth.raw_activities (
+  chest_acc_x double,
+  chest_acc_y double,
+  chest_acc_z double,
+  chest_ecg_1 double,
+  chest_ecg_2 double,
+  left_ankle_acc_x double,
+  left_ankle_acc_y double,
+  left_ankle_acc_z double,
+  left_ankle_gyro_x double,
+  left_ankle_gyro_y double,
+  left_ankle_gyro_z double,
+  left_ankle_mag_x double,
+  left_ankle_mag_y double,
+  left_ankle_mag_z double,
+  right_lower_arm_acc_x double,
+  right_lower_arm_acc_y double,
+  right_lower_arm_acc_z double,
+  right_lower_arm_gyro_x double,
+  right_lower_arm_gyro_y double,
+  right_lower_arm_gyro_z double,
+  right_lower_arm_mag_x double,
+  right_lower_arm_mag_y double,
+  right_lower_arm_mag_z double,
+  activity_label bigint
 )
 STORED AS PARQUET
-LOCATION 's3://aws-data-platform-20250607/processed/';
+LOCATION 's3://aws-data-platform-20250607/stage/';
 ```
-
-※logファイルの具体的な形式に応じてスキーマは変更
 
 ---
 
