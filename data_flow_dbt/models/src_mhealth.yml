@@ -1,8 +1,8 @@
 version: 2
 
 sources:
-  - name: mhealth
+  - name: mhealth_stage
     database: awsdatacatalog
-    schema: default
+    schema: stage_mhealth
     tables:
-      - name: raw_activity
+      - name: raw_activities
