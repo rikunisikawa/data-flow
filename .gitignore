@@ -22,3 +22,19 @@ layer/python/
 .idea/
 
 samconfig.toml
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Build artifacts
+build/
+
+# Generated SAM template
+packaged-template.yaml
+
+# Zip files in source directories (after moving to build/)
+convert_log_to_parquet/*.zip
+download_and_upload/*.zip
+layer/*.zip
