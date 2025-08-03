@@ -6,16 +6,13 @@ Description: >
   SAM template for the data processing pipeline.
 
 Parameters:
-  KaggleUsername:
-    Type: String
-    Description: Kaggle Username
-  KaggleKey:
-    Type: String
-    Description: Kaggle Key
   BucketName:
     Type: String
     Default: aws-data-platform-20250607
     Description: S3 bucket for the data pipeline
+  KaggleSecretArn:
+    Type: String
+    Description: ARN of the AWS Secrets Manager secret for Kaggle API credentials
 
 Globals:
   Function:
@@ -33,11 +30,48 @@ Resources:
       Environment:
         Variables:
           BUCKET_NAME: !Ref BucketName
-          KAGGLE_USERNAME: !Ref KaggleUsername
-          KAGGLE_KEY: !Ref KaggleKey
+          KAGGLE_SECRET_ARN: !Ref KaggleSecretArn
       Layers:
         - !Ref KaggleApiLayer
       MemorySize: 1024
+      Role: !GetAtt DownloadAndUploadFunctionRole.Arn
+
+  DownloadAndUploadFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaBasicExecution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+        - PolicyName: S3WriteAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:PutObject"
+                Resource: !Sub "arn:aws:s3:::${BucketName}/*"
+        - PolicyName: SecretsManagerReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: "secretsmanager:GetSecretValue"
+                Resource: !Ref KaggleSecretArn
 
   ConvertLogToParquetFunction:
     Type: AWS::Serverless::Function
@@ -53,6 +87,38 @@ Resources:
       Layers:
         - !Ref KaggleApiLayer
       MemorySize: 1024
+      Role: !GetAtt ConvertLogToParquetFunctionRole.Arn
+
+  ConvertLogToParquetFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaBasicExecution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+        - PolicyName: S3ReadWriteAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:PutObject"
+                Resource: !Sub "arn:aws:s3:::${BucketName}/*"
 
   DataProcessingStateMachine:
     Type: AWS::Serverless::StateMachine
@@ -120,6 +186,7 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              # TODO: Restrict S3 access to the minimum required paths.
               - Effect: Allow
                 Action:
                   - "s3:GetObject"

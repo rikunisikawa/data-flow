@@ -2,11 +2,17 @@ import boto3
 import os
 import zipfile
 import logging
+import json
 
 # Logger setup
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 if not logger.handlers:
+    # Note: In a real Lambda environment, logs are typically sent to CloudWatch.
+    # This file-based logging is for local testing or specific use cases.
+    # Consider removing or wrapping this in a local environment check.
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
     log_handler = logging.FileHandler('logs/download_and_upload.log')
     log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     log_handler.setFormatter(log_formatter)
@@ -19,28 +25,52 @@ def get_api():
 def get_s3_client():
     return boto3.client('s3')
 
+def get_secrets_manager_client():
+    return boto3.client('secretsmanager')
+
+def get_kaggle_credentials(secret_arn):
+    """Retrieves Kaggle credentials from AWS Secrets Manager."""
+    client = get_secrets_manager_client()
+    try:
+        get_secret_value_response = client.get_secret_value(SecretId=secret_arn)
+        secret = get_secret_value_response['SecretString']
+        return json.loads(secret)
+    except Exception as e:
+        logger.error(f"Failed to retrieve secret from Secrets Manager: {e}")
+        raise
+
 def lambda_handler(event, context):
-    kaggle_username = os.environ.get('KAGGLE_USERNAME')
-    kaggle_key = os.environ.get('KAGGLE_KEY')
+    secret_arn = os.environ.get('KAGGLE_SECRET_ARN')
     bucket_name = os.environ.get('BUCKET_NAME')
 
-    if not all([kaggle_username, kaggle_key, bucket_name]):
-        logger.error("Environment variables KAGGLE_USERNAME, KAGGLE_KEY, or BUCKET_NAME not set")
+    if not all([secret_arn, bucket_name]):
+        logger.error("Environment variables KAGGLE_SECRET_ARN or BUCKET_NAME not set")
         return {
             'statusCode': 500,
             'body': 'Required environment variables not set'
         }
 
-    api = get_api()
-    api.set_config_value('username', kaggle_username)
-    api.set_config_value('key', kaggle_key)
-    api.authenticate()
-
-    dataset = 'nirmalsankalana/mhealth-dataset-data-set'
-    download_dir = '/tmp'
-    extract_path = '/tmp/mhealth'
-
     try:
+        kaggle_credentials = get_kaggle_credentials(secret_arn)
+        kaggle_username = kaggle_credentials.get('username')
+        kaggle_key = kaggle_credentials.get('key')
+
+        if not all([kaggle_username, kaggle_key]):
+            logger.error("Kaggle 'username' or 'key' not found in the secret.")
+            return {
+                'statusCode': 500,
+                'body': "Kaggle 'username' or 'key' not found in the secret."
+            }
+
+        api = get_api()
+        api.set_config_value('username', kaggle_username)
+        api.set_config_value('key', kaggle_key)
+        api.authenticate()
+
+        dataset = 'nirmalsankalana/mhealth-dataset-data-set'
+        download_dir = '/tmp'
+        extract_path = '/tmp/mhealth'
+
         logger.info(f"Downloading dataset: {dataset}")
         api.dataset_download_files(dataset, path=download_dir, unzip=False)
 
@@ -68,7 +98,7 @@ def lambda_handler(event, context):
                 logger.info(f"Uploading {file_path} to s3://{bucket_name}/{s3_key}")
                 s3.upload_file(file_path, bucket_name, s3_key)
                 uploaded_files.append(s3_key)
-                break  # 1つのファイルのみ処理したら終了（コストの問題により）
+                break
 
         logger.info(f"Successfully uploaded {len(uploaded_files)} log files to S3")
         return {

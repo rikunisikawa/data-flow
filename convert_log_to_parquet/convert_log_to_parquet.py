@@ -10,6 +10,11 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 if not logger.handlers:
+    # Note: In a real Lambda environment, logs are typically sent to CloudWatch.
+    # This file-based logging is for local testing or specific use cases.
+    # Consider removing or wrapping this in a local environment check.
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
     log_handler = logging.FileHandler('logs/convert_log_to_parquet.log')
     log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     log_handler.setFormatter(log_formatter)
