@@ -4,23 +4,29 @@
 
 このドキュメントは、AI（Gemini）がこのプロジェクトで開発を行う際の指示書です。
 
+## 📚 ドキュメント構造
+
+プロジェクトのドキュメントは、`.github/docs/` ディレクトリ以下に種類別に整理されています。
+
+- **GitHub Actions**: `.github/docs/github-actions/`
+  - `auto-pr-workflow.md`: Issue起票からPull Request作成までの自動化ワークフローに関する仕様。
+  - `terraform-deploy-workflow.md`: Terraformによるインフラデプロイ自動化ワークフローに関する仕様。
+  - `github-actions-iam-role-auth.md`: GitHub ActionsでのIAMロール認証（OpenID Connect）の設定方法。
+
+- **システム設計**: `ai-doc/infra/`
+  - `terraform-design.md`: Terraformを用いたインフラストラクチャ管理の設計思想と運用方針。
+  - その他のシステム設計ドキュメント。
+
+- **Gemini CLI ログ**: `.github/docs/gemini-cli-logs/`
+  - Gemini CLIの実行ログや、特定のタスクに関するメモが日付ごとに保存されます。
+
 ## 🤖 開発フロー
 
-このプロジェクトでは、GitHub Actionsにより、Issue起票からPull Requestのマージ準備までが半自動化されています。
+このプロジェクトでは、GitHub Actionsにより、Issue起票からPull Requestのマージ準備までが半自動化されています。詳細については、`.github/docs/github-actions/auto-pr-workflow.md` を参照してください。
 
-1.  **Issueの起票**: すべての開発タスクはIssueとして開始されます。
+### プロジェクト計画
 
-2.  **計画 (Plan)**: Issueが作成されると、GitHub Actionsが自動で起動します。
-    - GeminiがIssueの内容を分析し、実装計画を作成します。
-    - `feature/issue-XXX` という名前のブランチが作成され、計画レビューのための **Pull Requestが自動で起票されます**。
-
-3.  **実行 (Implement)**: プロジェクト関係者がPull Request上で計画を確認し、承認できる場合は、**対応するIssue**のコメント欄に `/execute` と入力します。（追加の指示もコメントに含めることが可能です）
-
-4.  **実装とPR更新 (Update Pull Request)**: `/execute` コメントをトリガーに、GitHub Actionsが再度起動します。
-    - Geminiが計画と追加指示に基づき、実装を行います。
-    - 完了後、**ステップ2で作成されたPull Requestが、自動的に実装内容で更新されます**。
-
-5.  **レビューとマージ**: 自動更新されたPull Requestを最終レビューし、問題がなければマージします。
+手動で作成された、プロジェクトの大きな方向性やフェーズを示す計画書は、`ai-doc/project-plans/` に保存されます。
 
 ## 📝 開発ルール
 
