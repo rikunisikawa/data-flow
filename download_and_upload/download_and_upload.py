@@ -3,6 +3,11 @@ import os
 import zipfile
 import logging
 
+# Set Kaggle config directory to a writable path in Lambda
+KAGGLE_CONFIG_DIR = os.path.join('/tmp', '.kaggle')
+os.environ['KAGGLE_CONFIG_DIR'] = KAGGLE_CONFIG_DIR
+os.makedirs(KAGGLE_CONFIG_DIR, exist_ok=True)
+
 # Logger setup
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
