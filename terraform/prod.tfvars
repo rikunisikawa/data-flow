@@ -1,1 +1,1 @@
-bucket_name = "prod-aws-data-platform"
+base_bucket_name = "aws-data-platform-20250607"

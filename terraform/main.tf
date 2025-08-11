@@ -2,6 +2,8 @@ locals {
   bucket_name = "${terraform.workspace}-${var.base_bucket_name}"
 }
 
+data "aws_caller_identity" "current" {}
+
 data "aws_ssm_parameter" "kaggle_username" {
   name = "/data-flow/kaggle/username"
   with_decryption = true
@@ -163,4 +165,54 @@ resource "aws_iam_role" "sfn_execution_role" {
       ]
     })
   }
+}
+
+# Role for GitHub Actions to assume for Terraform deployment
+resource "aws_iam_role" "github_actions_terraform_deploy_role" {
+  name = "GitHubActionsTerraformDeployRole"
+
+  assume_role_policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [
+      {
+        Effect    = "Allow"
+        Principal = {
+          Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
+        }
+        Action    = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = "repo:rikunisikawa/data-flow:*"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
+  name = "GitHubActionsTerraformDeployPolicy"
+  role = aws_iam_role.github_actions_terraform_deploy_role.id
+
+  # WARNING: This policy is highly permissive.
+  # For production environments, it is strongly recommended to scope down these permissions
+  # to the minimum required for your Terraform resources.
+  policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "s3:*",
+          "lambda:*",
+          "iam:*",
+          "states:*"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }
