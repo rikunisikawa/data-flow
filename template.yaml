@@ -79,7 +79,7 @@ Resources:
   KaggleApiLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      ContentUri: layer/build
+      ContentUri: layer/sam
       CompatibleRuntimes:
         - python3.11
       LicenseInfo: MIT

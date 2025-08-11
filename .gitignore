@@ -14,9 +14,6 @@ venv/
 # 環境変数や資格情報系（重要）
 kaggle_credentials.json
 
-# 任意: Layerにビルド成果物を配置している場合
-layer/python/
-
 # VSCodeなどのエディタ系
 .vscode/
 .idea/
@@ -38,3 +35,6 @@ packaged-template.yaml
 convert_log_to_parquet/*.zip
 download_and_upload/*.zip
 layer/*.zip
+
+# Layer build artifacts
+layer/terraform/artifacts/

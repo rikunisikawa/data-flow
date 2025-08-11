@@ -1,0 +1,7 @@
+# boto3
+pandas
+fastparquet
+kaggle
+numpy==1.26.4
+# dbt-athena-community
+

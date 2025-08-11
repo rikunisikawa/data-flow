@@ -76,10 +76,45 @@ resource "aws_iam_role" "lambda_execution_role" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_execution_policy" {
+  name = "${terraform.workspace}-lambda-execution-policy"
+  role = aws_iam_role.lambda_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject"
+        ],
+        Resource = "${aws_s3_bucket.this.arn}/*"
+      },
+      {
+        Effect = "Allow",
+        Action = "s3:ListBucket",
+        Resource = aws_s3_bucket.this.arn
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Resource = "arn:aws:logs:*:*:*"
+      }
+    ]
+  })
+}
+
 # Kaggle API Layer (仮)
 resource "aws_lambda_layer_version" "kaggle_api_layer" {
   layer_name          = "${terraform.workspace}-kaggle-api-layer"
-  filename            = "/app/build/layer.zip"
+  s3_bucket           = aws_s3_bucket.this.id # S3バケットを参照
+  s3_key              = "layers/layer.zip"    # S3上のキー
+  source_code_hash    = filebase64sha256("/app/build/layer.zip") # ハッシュで更新をトリガー
   compatible_runtimes = ["python3.11"]
   license_info        = "MIT"
 }

@@ -1,8 +1,7 @@
 import os
 import boto3
 import pandas as pd
-import pyarrow
-import pyarrow.parquet as pq
+
 import io
 import logging
 
@@ -75,9 +74,8 @@ def lambda_handler(event, context):
 
                     df.columns = COLUMN_NAMES
 
-                    table = pyarrow.Table.from_pandas(df)
                     parquet_buffer = io.BytesIO()
-                    pq.write_table(table, parquet_buffer)
+                    df.to_parquet(parquet_buffer, engine='fastparquet', index=False)
 
                     parquet_key = key.replace('raw/', 'stage/').replace('.log', '.parquet')
                     s3_client.put_object(Bucket=bucket_name, Key=parquet_key, Body=parquet_buffer.getvalue())
