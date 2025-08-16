@@ -33,5 +33,5 @@ jobs:
       - name: Build and Run Terraform
         run: |
           cd terraform
-          docker bcompose build
+          docker compose build
           docker compose run --rm terraform bash -c "terraform init && terraform workspace select prod || terraform workspace new prod && terraform apply -auto-approve -var-file=prod.tfvars"
