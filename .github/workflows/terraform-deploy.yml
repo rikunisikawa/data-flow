@@ -1,6 +1,7 @@
 name: Terraform Deploy
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -31,7 +32,17 @@ jobs:
         run: bash build.sh
 
       - name: Build and Run Terraform
+
         run: |
           cd terraform
           docker compose build
-          docker compose run --rm terraform bash -c "terraform init && terraform workspace select prod || terraform workspace new prod && terraform apply -auto-approve -var-file=prod.tfvars"
+          docker compose run --rm \
+            -e AWS_ACCESS_KEY_ID \
+            -e AWS_SECRET_ACCESS_KEY \
+            -e AWS_SESSION_TOKEN \
+            -e AWS_DEFAULT_REGION \
+            -e AWS_REGION \
+            terraform sh -c "\
+              terraform init -reconfigure && \
+              (terraform workspace select prod || terraform workspace new prod) && \
+              terraform apply -auto-approve -var-file=prod.tfvars"
