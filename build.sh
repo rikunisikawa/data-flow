@@ -16,6 +16,6 @@ zip -r ../build/convert_log_to_parquet.zip .
 cd ..
 
 # Build Lambda Layer
-bash layer/terraform/build-layer.sh
+bash layer/terraform/build-layer.sh "$1"
 
 echo "All Lambda deployment packages created in the 'build/' directory."
