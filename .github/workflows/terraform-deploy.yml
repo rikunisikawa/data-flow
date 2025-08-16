@@ -46,4 +46,3 @@ jobs:
               terraform init -reconfigure && \
               (terraform workspace select prod || terraform workspace new prod) && \
               terraform apply -auto-approve -var-file=prod.tfvars"
-

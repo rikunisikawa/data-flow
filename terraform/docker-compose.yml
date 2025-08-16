@@ -4,11 +4,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: terraform_cli_container
-    working_dir: /work
+    working_dir: /work/terraform
     volumes:
-      - ../:/app # プロジェクトルートをコンテナの /app にマウント
-      - .:/work  # terraform ディレクトリをコンテナの /work にマウント
-      - /home/riku_nishikawa/.aws:/root/.aws
+      - ../:/work # プロジェクトルートをコンテナの /work にマウント
+      - ~/.aws:/root/.aws
     environment:
       - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-ap-northeast-1}
     entrypoint: ""

@@ -21,8 +21,8 @@ resource "aws_s3_bucket" "this" {
 resource "aws_s3_object" "glue_script" {
   bucket = aws_s3_bucket.this.id
   key    = "scripts/glue_job.py"
-  source = "/app/glue_job/glue_job.py"
-  etag   = filemd5("/app/glue_job/glue_job.py")
+  source = "${path.module}/../glue_job/glue_job.py"
+  etag   = filemd5("${path.module}/../glue_job/glue_job.py")
 }
 
 module "download_and_upload_lambda" {
@@ -34,7 +34,7 @@ module "download_and_upload_lambda" {
   architectures         = ["x86_64"]
   memory_size           = 1024
   timeout               = 300
-  filename              = "/app/build/download_and_upload.zip"
+  filename              = "${path.module}/../build/download_and_upload.zip"
   role_arn              = aws_iam_role.lambda_execution_role.arn
   layers                = [aws_lambda_layer_version.kaggle_api_layer.arn]
   environment_variables = {
@@ -53,7 +53,7 @@ module "convert_log_to_parquet_lambda" {
   architectures         = ["x86_64"]
   memory_size           = 1024
   timeout               = 300
-  filename              = "/app/build/convert_log_to_parquet.zip"
+  filename              = "${path.module}/../build/convert_log_to_parquet.zip"
   role_arn              = aws_iam_role.lambda_execution_role.arn
   layers                = [aws_lambda_layer_version.kaggle_api_layer.arn]
   environment_variables = {
@@ -114,9 +114,9 @@ resource "aws_iam_role_policy" "lambda_execution_policy" {
 # Kaggle API Layer (仮)
 resource "aws_lambda_layer_version" "kaggle_api_layer" {
   layer_name          = "${terraform.workspace}-kaggle-api-layer"
-  s3_bucket           = aws_s3_bucket.this.id # S3バケットを参照
-  s3_key              = "layers/layer.zip"    # S3上のキー
-  source_code_hash    = filebase64sha256("/app/build/layer.zip") # ハッシュで更新をトリガー
+  s3_bucket           = aws_s3_bucket.this.id
+  s3_key              = "layers/layer.zip"
+  source_code_hash    = filebase64sha256("${path.module}/../build/layer.zip")
   compatible_runtimes = ["python3.11"]
   license_info        = "MIT"
 }
@@ -125,7 +125,7 @@ resource "aws_sfn_state_machine" "data_processing_state_machine" {
   name     = "${terraform.workspace}-data-processing-state-machine"
   role_arn = aws_iam_role.sfn_execution_role.arn
 
-  definition = templatefile("/app/state_machine/data_processing.asl.json", {
+  definition = templatefile("${path.module}/../state_machine/data_processing.asl.json", {
     DownloadAndUploadFunctionArn   = module.download_and_upload_lambda.function_arn
     ConvertLogToParquetFunctionArn = module.convert_log_to_parquet_lambda.function_arn
     GlueJobName                    = "" # Not used anymore
