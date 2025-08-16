@@ -30,7 +30,7 @@ jobs:
           prompt: |
             /background あなたは優秀なプロジェクトマネージャー兼ソフトウェアエンジニアです。
             以下のIssueの内容を分析し、具体的な実装計画を作成してください。
-            計画はマークダウン形式で、`write_file`ツールを呼び出して `.github/plans/issue-${{ github.event.issue.number }}.md` というファイルに保存してください。
+            計画はマークダウン形式で、`write_file`ツールを呼び出して `${{ github.workspace }}/.github/plans/issue-${{ github.event.issue.number }}.md` というファイルに保存してください。
 
             Issue Title: ${{ github.event.issue.title }}
             Issue Body: ${{ github.event.issue.body }}
@@ -72,7 +72,7 @@ jobs:
           else
             gh pr create \
               --title "Plan: Implementation plan for issue #${{ github.event.issue.number }}" \
-              --body "This PR contains the implementation plan for issue #${{ github.event.issue.number }}.\n\nPlease review the plan. To proceed with implementation, comment \`/execute\` on the issue or PR (including review comments) with any additional instructions." \
+              --body "This PR contains the implementation plan for issue #${{ github.event.issue.number }}.\n\nPlease review the plan. To proceed with implementation, comment \"/execute\" on the issue or PR (including review comments) with any additional instructions." \
               --base main \
               --head "$BRANCH_NAME" \
               --label "plan"
@@ -102,7 +102,7 @@ jobs:
             PR_NUMBER=${{ github.event.issue.number }}
             BRANCH_NAME=$(gh pr view "$PR_NUMBER" --json headRefName -q .headRefName)
             if [[ "$BRANCH_NAME" =~ ^feature/issue-([0-9]+)$ ]]; then
-              ISSUE_NUMBER="${BASH_REMATCH[1]}"
+              ISSUE_NUMBER="${{BASH_REMATCH[1]}}"
             else
               echo "Could not extract issue number from branch name: $BRANCH_NAME"
               exit 1
