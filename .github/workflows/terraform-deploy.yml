@@ -29,7 +29,7 @@ jobs:
           aws-region: ap-northeast-1
 
       - name: Build Lambda Deployment Packages
-        run: bash build.sh
+        run: bash build.sh prod
 
       - name: Build and Run Terraform
 

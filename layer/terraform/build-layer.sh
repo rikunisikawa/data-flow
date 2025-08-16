@@ -1,6 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
+# 引数から環境名を取得
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <dev|prod>"
+    exit 1
+fi
+readonly ENV="$1"
+
 # スクリプトが配置されているディレクトリに移動
 cd "$(dirname "$0")"
 
@@ -38,10 +45,20 @@ cd ..
 echo "Successfully created layer.zip in build directory"
 
 # S3へのアップロード
-LAYER_BUCKET_NAME="$1" # 最初の引数をバケット名として取得
+echo "Determining S3 bucket based on environment: $ENV"
+
+if [ "$ENV" = "dev" ]; then
+    LAYER_BUCKET_NAME="dev-aws-data-platform-20250607"
+elif [ "$ENV" = "prod" ]; then
+    LAYER_BUCKET_NAME="prod-aws-data-platform-20250607"
+else
+    echo "Error: Invalid environment specified. Use 'dev' or 'prod'." >&2
+    exit 1
+fi
+
 LAYER_S3_KEY="layers/layer.zip" # S3のキー
 
-echo "Uploading build/layer.zip to s3://${LAYER_BUCKET_NAME}/${LAYER_S3_KEY}"
-aws s3 cp "../build/layer.zip" "s3://${LAYER_BUCKET_NAME}/${LAYER_S3_KEY}"
+echo "Uploading ../../build/layer.zip to s3://${LAYER_BUCKET_NAME}/${LAYER_S3_KEY}"
+aws s3 cp "../../build/layer.zip" "s3://${LAYER_BUCKET_NAME}/${LAYER_S3_KEY}"
 
 echo "Successfully uploaded layer.zip to S3"
