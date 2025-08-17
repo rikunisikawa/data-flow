@@ -153,6 +153,7 @@ jobs:
             コード変更が完了したら、以下の区切り線を使って、この変更を説明するPull Requestのタイトル、本文、そしてコミットメッセージを生成してください。
 
             **重要**: `.github/workflows`ディレクトリ内のファイルは絶対に編集しないでください。
+            **重要**: `run_shell_command`ツールを使用する際は、セキュリティ上の理由から、`$()`、`<()`、`>()`のようなコマンド置換は使用しないでください。
 
             Issue Title: ${{ github.event.issue.title }}
             Issue Body: ${{ github.event.issue.body }}
