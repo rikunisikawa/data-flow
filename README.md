@@ -3,7 +3,7 @@
 ## 🎯 開発目的
 
 - Kaggle公式API経由で取得した**mHealthデータセット（logファイル）**をETL処理し、**Parquet形式でS3に格納**。
-- それをAthenaで分析できるようにする自動化データ基盤を、**AWS SAM（Serverless Application Model）**で構築する。
+- それをAthenaで分析できるようにする自動化データ基盤を、**Terraform**で構築する。（AWS SAM（Serverless Application Model）から移行済み）
 
 ---
 
