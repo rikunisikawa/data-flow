@@ -9,14 +9,19 @@ resource "aws_glue_catalog_table" "this" {
   name          = var.table_name
   table_type    = "EXTERNAL_TABLE"
 
+  partition_keys {
+    name = "subject_id"
+    type = "string"
+  }
+
+  partition_keys {
+    name = "activity_label"
+    type = "string"
+  }
+
   parameters = {
-    classification              = "parquet"
-    EXTERNAL                    = "TRUE"
-    "projection.enabled"        = "true"
-    "projection.date.type"      = "date"
-    "projection.date.range"     = "2024/01/01,NOW"
-    "projection.date.format"    = "yyyy/MM/dd"
-    "storage.location.template" = "${var.s3_location}date=$${date}/"
+    classification = "parquet"
+    EXTERNAL       = "TRUE"
   }
 
   storage_descriptor {
