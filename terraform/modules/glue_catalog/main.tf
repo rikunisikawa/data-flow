@@ -41,8 +41,4 @@ resource "aws_glue_catalog_table" "this" {
     }
   }
 
-  partition_keys {
-    name = "date"
-    type = "string"
-  }
-}
+  
