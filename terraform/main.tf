@@ -216,3 +216,38 @@ resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
     ]
   })
 }
+
+module "glue_catalog_raw_activities" {
+  source = "./modules/glue_catalog"
+
+  database_name = "${terraform.workspace}_stage_mhealth"
+  table_name    = "raw_activities"
+  s3_location   = "s3://${aws_s3_bucket.this.id}/stage/"
+
+  columns = [
+    { name = "chest_acc_x", type = "double" },
+    { name = "chest_acc_y", type = "double" },
+    { name = "chest_acc_z", type = "double" },
+    { name = "chest_ecg_1", type = "double" },
+    { name = "chest_ecg_2", type = "double" },
+    { name = "left_ankle_acc_x", type = "double" },
+    { name = "left_ankle_acc_y", type = "double" },
+    { name = "left_ankle_acc_z", type = "double" },
+    { name = "left_ankle_gyro_x", type = "double" },
+    { name = "left_ankle_gyro_y", type = "double" },
+    { name = "left_ankle_gyro_z", type = "double" },
+    { name = "left_ankle_mag_x", type = "double" },
+    { name = "left_ankle_mag_y", type = "double" },
+    { name = "left_ankle_mag_z", type = "double" },
+    { name = "right_lower_arm_acc_x", type = "double" },
+    { name = "right_lower_arm_acc_y", type = "double" },
+    { name = "right_lower_arm_acc_z", type = "double" },
+    { name = "right_lower_arm_gyro_x", type = "double" },
+    { name = "right_lower_arm_gyro_y", type = "double" },
+    { name = "right_lower_arm_gyro_z", type = "double" },
+    { name = "right_lower_arm_mag_x", type = "double" },
+    { name = "right_lower_arm_mag_y", type = "double" },
+    { name = "right_lower_arm_mag_z", type = "double" },
+    { name = "activity_label", type = "bigint" }
+  ]
+}
