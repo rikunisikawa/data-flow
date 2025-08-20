@@ -24,7 +24,7 @@
 
 ## 📁 S3構成と用途
 
-```text
+```
 s3://aws-data-platform-20250607/
 ├── raw/        # Lambda① が保存（logファイル）
 ├── stage/      # Lambda② or Glue① が保存（Parquet）
@@ -35,22 +35,22 @@ s3://aws-data-platform-20250607/
 
 ## 🔄 データ処理フロー（ETL）
 
-| ステップ | 処理内容                           | 実装先              |
-|----------|------------------------------------|---------------------|
-| ①        | Kaggle APIからlogファイル取得→S3保存 | Lambda①             |
-| ②        | log → Parquet形式に変換             | Lambda②             |
-| ③        | **dbtによるデータ変換・整形**        | **dbt (Athena経由)** |
-| ④        | **dbtによるデータ品質テスト**        | **dbt (Athena経由)** |
+| ステップ | 処理内容                                 | 実装先                |
+|----------|------------------------------------------|-----------------------|
+| ①        | Kaggle APIからlogファイル取得→S3保存     | Lambda①              |
+| ②        | log → Parquet形式に変換                  | Lambda②              |
+| ③        | dbtによるデータ変換・整形                | dbt (Athena経由)     |
+| ④        | dbtによるデータ品質テスト                | dbt (Athena経由)     |
 
 ---
 
 ## 📦 SAM定義リソース（template.yaml）
 
-- Lambda①：`download_and_upload.lambda_handler`
-- Lambda②：`convert_log_to_parquet.lambda_handler`
-- Step Functions：Lambda①→Lambda②の順次実行を制御
-- 環境変数：`BUCKET_NAME=aws-data-platform-20250607`
-- EventBridge：Step Functionsの定時実行トリガー
+- **Lambda①**：`download_and_upload.lambda_handler`
+- **Lambda②**：`convert_log_to_parquet.lambda_handler`
+- **Step Functions**：Lambda①→Lambda②の順次実行を制御
+- **環境変数**：`BUCKET_NAME=aws-data-platform-20250607`
+- **EventBridge**：Step Functionsの定時実行トリガー
 
 ---
 
@@ -58,11 +58,11 @@ s3://aws-data-platform-20250607/
 
 - **入力**：なし（定時実行）
 - **処理**：
-  - `kaggle` 公式APIでmHealth logファイルをダウンロード
+  - kaggle公式APIでmHealth logファイルをダウンロード
   - S3 `/raw/` にアップロード
-- **依存ライブラリ**：`kaggle`
+- **依存ライブラリ**：kaggle
 - **認証**：`kaggle.json` をSecrets ManagerやParameter Storeに保存し、Lambda起動時に取得
-- **共通ライブラリ**：`boto3`
+- **共通ライブラリ**：boto3
 
 **処理例コード**
 
@@ -73,27 +73,27 @@ import zipfile
 from kaggle.api.kaggle_api_extended import KaggleApi
 
 def lambda_handler(event, context):
-    api = KaggleApi()
-    api.authenticate()
+  api = KaggleApi()
+  api.authenticate()
 
-    dataset = 'nirmalsankalana/mhealth-dataset-data-set'
-    download_path = '/tmp/mhealth.zip'
-    extract_path = '/tmp/mhealth'
+  dataset = 'nirmalsankalana/mhealth-dataset-data-set'
+  download_path = '/tmp/mhealth.zip'
+  extract_path = '/tmp/mhealth'
 
-    api.dataset_download_files(dataset, path='/tmp', unzip=False)
+  api.dataset_download_files(dataset, path='/tmp', unzip=False)
 
-    with zipfile.ZipFile(download_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_path)
+  with zipfile.ZipFile(download_path, 'r') as zip_ref:
+    zip_ref.extractall(extract_path)
 
-    s3 = boto3.client('s3')
-    bucket = os.environ['BUCKET_NAME']
+  s3 = boto3.client('s3')
+  bucket = os.environ['BUCKET_NAME']
 
-    for root, dirs, files in os.walk(extract_path):
-        for file in files:
-            if file.endswith(".log"):
-                file_path = os.path.join(root, file)
-                s3_key = f'raw/{file}'
-                s3.upload_file(file_path, bucket, s3_key)
+  for root, dirs, files in os.walk(extract_path):
+    for file in files:
+      if file.endswith(".log"):
+        file_path = os.path.join(root, file)
+        s3_key = f'raw/{file}'
+        s3.upload_file(file_path, bucket, s3_key)
 ```
 
 ---
@@ -103,10 +103,35 @@ def lambda_handler(event, context):
 - **入力**：Step Functions経由での実行（S3イベントトリガーではない）
 - **処理**：
   - S3 `/raw/` フォルダ内の全ての`.log`ファイルをスキャン
-  - `pandas` でログを DataFrame として読み込み（区切り文字に応じて処理）
+  - pandasでログをDataFrameとして読み込み（区切り文字に応じて処理）
   - Parquet形式に変換 → `/stage/` に保存
-- **依存ライブラリ**：`pandas`, `pyarrow`, `boto3`
+  - このとき、`subject_id` と `activity_label` をパーティションキーとして付与
+- **依存ライブラリ**：pandas, pyarrow, boto3
 - **トリガー**：Step Functions State Machine
+
+---
+
+## ✅ パーティション戦略
+
+- **目的**：被験者単位の外挿評価（LOSOCV）やラベルごとの集計分析を効率化。Athenaでのクエリスキャン量を削減し、ETL後の分析を最適化。
+- **パーティションキー**：
+  - `subject_id`（ファイル名 mHealth_subjectX.log から抽出）
+  - `activity_label`（logファイル最終列の値）
+
+**ディレクトリ構造例：**
+
+```
+s3://aws-data-platform-20250607/stage/
+  subject_id=1/activity_label=4/part-000.parquet
+  subject_id=1/activity_label=10/part-001.parquet
+  subject_id=2/activity_label=5/part-000.parquet
+  ...
+```
+
+**利点：**
+- 被験者ごとにデータを簡単にフィルタできる → クロス被験者検証に便利
+- ラベルごとにデータ分布を効率確認可能
+- Glue Data Catalog登録時、`subject_id` と `activity_label` をパーティション列として設定可能
 
 ---
 
@@ -114,7 +139,7 @@ def lambda_handler(event, context):
 
 - **入力**：S3 `/stage/*.parquet` （Athenaの外部テーブル経由）
 - **処理**：
-  - `dbt run` を実行し、`/stage/`の生データを変換・整形
+  - `dbt run` を実行し、/stage/の生データを変換・整形
   - `dbt test` を実行し、データの品質をテスト
 - **出力**：S3 `/processed/` （dbtがAthena経由でテーブル作成）
 - **カタログ**：dbtがAthena/Glue Data Catalogにモデルに対応するテーブル・ビューを作成
@@ -154,6 +179,7 @@ CREATE EXTERNAL TABLE stage_mhealth.raw_activities (
   right_lower_arm_mag_z double,
   activity_label bigint
 )
+PARTITIONED BY (subject_id int, activity_label int)
 STORED AS PARQUET
 LOCATION 's3://aws-data-platform-20250607/stage/';
 ```

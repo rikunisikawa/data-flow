@@ -220,7 +220,7 @@ resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
 module "glue_catalog_raw_activities" {
   source = "./modules/glue_catalog"
 
-  database_name = "stage_mhealth"
+  database_name = "${terraform.workspace}_stage_mhealth"
   table_name    = "raw_activities"
   s3_location   = "s3://${aws_s3_bucket.this.id}/stage/"
 
