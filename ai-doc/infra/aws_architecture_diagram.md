@@ -1,48 +1,61 @@
 ## AWS Architecture Diagram
 
-This document outlines the architecture of the AWS data platform, managed by Terraform.
+このドキュメントは、Terraformで管理されているAWSデータ基盤のアーキテクチャをMermaid形式で可視化したものです。
 
 ```mermaid
 graph TD
-    subgraph データ収集 [Data Ingestion]
-        A[External Data Source<br>(e.g., Kaggle)] --> B(download-and-upload-function<br>Lambda);
-        B --> C{dev-data-flow-bucket<br>S3};
+    subgraph データ収集
+        A[Kaggle] --> B[Lambda: download_and_upload];
+        B --> C[S3: Raw Data Bucket];
     end
 
     subgraph ETL
-        D(Step Functions) -- "Invoke" --> B;
-        C -- "Trigger" --> D;
-        D -- "Invoke" --> E(convert-log-to-parquet-function<br>Lambda);
-        E --> F[S3<br>stage/];
-        G[glue_catalog_raw_activities<br>Glue Catalog] -.-> F;
-        subgraph dbt
-            H(dbt)
-        end
-        F --> H;
-        H --> I[S3<br>analytics/];
+        D[Step Functions: Data Processing] -- Invoke --> B;
+        D -- Invoke --> E[Lambda: convert_log_to_parquet];
+        C -- Trigger --> E;
+        E --> F[S3: Staging Data Bucket];
+        G[dbt] -- Transform --> H[S3: Processed Data Bucket];
     end
 
-    subgraph DWH [Data Warehouse]
-       I -- "Data Source" --> J(Athena);
+    subgraph DWH
+        F -- Defines --> I[Glue Catalog: stage_mhealth];
+        H -- Defines --> J[Glue Catalog: processed_mhealth];
     end
 
-    subgraph 分析 [Analysis]
-        J -- "Query" --> K[BI Tools / Notebooks];
+    subgraph 分析
+        K[Amazon Athena] -- Query --> I;
+        K -- Query --> J;
     end
 
-    style C fill:#f9f,stroke:#333,stroke-width:2px
-    style F fill:#f9f,stroke:#333,stroke-width:2px
-    style I fill:#f9f,stroke:#333,stroke-width:2px
+    style A fill:#FF9900,stroke:#333,stroke-width:2px
+    style B fill:#FF9900,stroke:#333,stroke-width:2px
+    style C fill:#5A6B86,stroke:#333,stroke-width:2px
+    style D fill:#C61F7E,stroke:#333,stroke-width:2px
+    style E fill:#FF9900,stroke:#333,stroke-width:2px
+    style F fill:#5A6B86,stroke:#333,stroke-width:2px
+    style G fill:#FF694A,stroke:#333,stroke-width:2px
+    style H fill:#5A6B86,stroke:#333,stroke-width:2px
+    style I fill:#2E73B8,stroke:#333,stroke-width:2px
+    style J fill:#2E73B8,stroke:#333,stroke-width:2px
+    style K fill:#2E73B8,stroke:#333,stroke-width:2px
 ```
 
-### Data Flow Overview
+### データフロー概要
 
-1.  **Data Ingestion**: The `download-and-upload` Lambda function is triggered to fetch data from an external source (like Kaggle) and places the raw data into an S3 bucket.
-2.  **ETL**:
-    *   An S3 event triggers a Step Functions workflow.
-    *   The workflow first invokes the `download-and-upload` function.
-    *   Next, it invokes the `convert-log-to-parquet` Lambda to transform the raw data into Parquet format and store it in the `stage/` directory of the S3 bucket.
-    *   The AWS Glue Data Catalog is updated with the schema of the staged data.
-    *   dbt is then used to run data transformation models, taking the staged data as a source and outputting the final, cleaned data to the `analytics/` directory in S3.
-3.  **Data Warehouse**: Amazon Athena uses the Glue Data Catalog to query the transformed data stored in the `analytics/` S3 directory.
-4.  **Analysis**: BI tools or data analysis notebooks can connect to Athena to run queries and visualize the data.
+1.  **データ収集**:
+    - `download_and_upload` Lambda関数が、外部のKaggle APIからmHealthデータセットをダウンロードし、生のログファイルのままS3バケット (`Raw Data Bucket`) にアップロードします。
+
+2.  **ETL (Extract, Transform, Load)**:
+    - このプロセス全体は **Step Functions** によってオーキエストレーションされます。
+    - Step Functionsはまず `download_and_upload` Lambdaをトリガーします。
+    - 次に、`convert_log_to_parquet` LambdaがS3の生データをトリガーとして、ログ形式からクエリ効率の良いParquet形式に変換し、別のS3バケット (`Staging Data Bucket`) に保存します。
+    - その後、**dbt** がStagingデータを読み込み、データクレンジングや変換処理（例: 不要な列の削除、データ型の統一、テーブルの結合など）を行い、最終的な分析用データとしてS3バケット (`Processed Data Bucket`) に出力します。
+
+3.  **DWH (Data Warehouse)**:
+    - **Glue Data Catalog** が、S3上のデータに対するメタデータストアとして機能します。
+    - `stage_mhealth` データベースは、Parquet変換後のStagingデータをテーブルとして定義します。
+    - `processed_mhealth` データベースは、dbtによって変換された最終的なデータをテーブルとして定義します。
+    - これにより、S3上のファイルが直接クエリ可能なテーブルとして扱えるようになります。
+
+4.  **分析**:
+    - **Amazon Athena** を使用して、Glue Data Catalogに登録されたテーブルに対して標準SQLでインタラクティブにクエリを実行し、データの分析や可視化を行います。
