@@ -268,24 +268,21 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
+          set -Eeuo pipefail
+
           BRANCH_NAME="${{ steps.get_branch.outputs.branch_name }}"
           PR_TITLE="${{ steps.extract_pr_info.outputs.pr_title }}"
-          PR_BODY="${{ steps.extract_pr_info.outputs.pr_body }}"
 
-          PR_NUMBER=$(gh pr list --head "$BRANCH_NAME" --json number -q '.[0].number')
+          # 本文は直接代入せずファイルへ
+          BODY_FILE="$(mktemp)"
+          printf '%s' "${{ steps.extract_pr_info.outputs.pr_body }}" > "$BODY_FILE"
 
-          if [ -z "$PR_NUMBER" ]; then
+          PR_NUMBER="$(gh pr list --head "$BRANCH_NAME" --json number -q '.[0].number' || true)"
+
+          if [ -z "${PR_NUMBER:-}" ]; then
             echo "Could not find a PR for branch $BRANCH_NAME. Creating a new one."
-            gh pr create \
-              --title "$PR_TITLE" \
-              --body "$PR_BODY" \
-              --base main \
-              --head "$BRANCH_NAME" \
-              --label "auto-generated,plan-approved"
+            gh pr create --title "$PR_TITLE" --body-file "$BODY_FILE"               --base main               --head "$BRANCH_NAME"               --label "auto-generated,plan-approved"
           else
             echo "Updating PR #$PR_NUMBER with title: $PR_TITLE"
-            gh pr edit "$PR_NUMBER" \
-              --title "$PR_TITLE" \
-              --body "$PR_BODY"
+            gh pr edit "$PR_NUMBER" --title "$PR_TITLE" --body-file "$BODY_FILE"
           fi
