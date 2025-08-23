@@ -41,19 +41,20 @@ jobs:
         run: |
           set -e
           BRANCH_NAME="feature/issue-${{ github.event.issue.number }}"
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin
-          
-          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null; then
+
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null;
+            then
             echo "Branch $BRANCH_NAME already exists."
             exit 0
           fi
 
           git switch -c "$BRANCH_NAME"
-          
+
           if [ -n "$(git status --porcelain)" ]; then
             git add -A
             git commit -m "feat(plan): create plan for issue #${{ github.event.issue.number }}"
@@ -68,7 +69,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH_NAME: ${{ steps.git_work.outputs.branch_name }}
         run: |
-          if gh pr view "$BRANCH_NAME" --json number -q . >/dev/null 2>&1; then
+          set -e
+          if gh pr view "$BRANCH_NAME" --json number -q . >/dev/null 2>&1;
+            then
             echo "PR already exists for branch $BRANCH_NAME"
           else
             gh pr create \
@@ -91,26 +94,48 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Determine issue number and branch name
         id: get_branch
         run: |
+          set -e
           ISSUE_NUMBER=""
           BRANCH_NAME=""
 
-          # If the comment is on a PR
-          if [[ -n "${{ github.event.issue.pull_request }}" ]]; then
-            PR_NUMBER=${{ github.event.issue.number }}
+          EVENT_NAME="${{ github.event_name }}"
+
+          if [ "$EVENT_NAME" = "pull_request_review_comment" ]; then
+            # PRレビューコメントの場合
+            PR_NUMBER=${{ github.event.pull_request.number }}
             BRANCH_NAME=$(gh pr view "$PR_NUMBER" --json headRefName -q .headRefName)
             if [[ "$BRANCH_NAME" =~ ^feature/issue-([0-9]+)$ ]]; then
-              ISSUE_NUMBER="${BASH_REMATCH[1]}"
+              ISSUE_NUMBER="${{BASH_REMATCH[1]}}"
             else
-              echo "Could not extract issue number from branch name: $BRANCH_NAME"
+              echo "Could not extract issue number from branch name (PR review comment): $BRANCH_NAME"
               exit 1
             fi
+          elif [ "$EVENT_NAME" = "issue_comment" ]; then
+            # Issueコメント（Issue or PR）場合
+            if [[ -n "${{ github.event.issue.pull_request }}" ]]; then
+              # PR上のコメント
+              PR_NUMBER=${{ github.event.issue.number }}
+              BRANCH_NAME=$(gh pr view "$PR_NUMBER" --json headRefName -q .headRefName)
+              if [[ "$BRANCH_NAME" =~ ^feature/issue-([0-9]+)$ ]]; then
+                ISSUE_NUMBER="${BASH_REMATCH[1]}"
+              else
+                echo "Could not extract issue number from branch name (PR comment): $BRANCH_NAME"
+                exit 1
+              fi
+            else
+              # 純粋なIssue上のコメント
+              ISSUE_NUMBER=${{ github.event.issue.number }}
+              BRANCH_NAME="feature/issue-$ISSUE_NUMBER"
+            fi
           else
-            ISSUE_NUMBER=${{ github.event.issue.number }}
-            BRANCH_NAME="feature/issue-$ISSUE_NUMBER"
+            echo "Unsupported event: $EVENT_NAME"
+            exit 1
           fi
 
           if [[ -z "$ISSUE_NUMBER" || -z "$BRANCH_NAME" ]]; then
@@ -118,8 +143,10 @@ jobs:
             exit 1
           fi
 
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          {
+            echo "branch_name=$BRANCH_NAME"
+            echo "issue_number=$ISSUE_NUMBER"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Checkout branch
         uses: actions/checkout@v3
@@ -130,16 +157,22 @@ jobs:
       - name: Read plan file
         id: read_plan
         run: |
+          set -e
           PLAN_FILE=".github/plans/issue-${{ steps.get_branch.outputs.issue_number }}.md"
+          EOF_KEY=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+
           if [ ! -f "$PLAN_FILE" ]; then
-            echo "Plan file not found."
-            echo "content=Plan file not found. Proceeding with issue title and body only." >> $GITHUB_OUTPUT
+            {
+              echo "content<<$EOF_KEY"
+              echo "Plan file not found. Proceeding with issue title and body only."
+              echo "$EOF_KEY"
+            } >> "$GITHUB_OUTPUT"
           else
-            content=$(cat $PLAN_FILE)
-            EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-            echo "content<<$EOF" >> $GITHUB_OUTPUT
-            echo "$content" >> $GITHUB_OUTPUT
-            echo "$EOF" >> $GITHUB_OUTPUT
+            {
+              echo "content<<$EOF_KEY"
+              cat "$PLAN_FILE"
+              echo "$EOF_KEY"
+            } >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run Gemini CLI for implementation
@@ -158,7 +191,7 @@ jobs:
             Issue Title: ${{ github.event.issue.title }}
             Issue Body: ${{ github.event.issue.body }}
             Latest Comment: ${{ github.event.comment.body }}
-            
+
             Approved Plan:
             ${{ steps.read_plan.outputs.content }}
 
@@ -172,25 +205,47 @@ jobs:
       - name: Extract PR info or set fallback
         id: extract_pr_info
         run: |
+          set -e
           gemini_output="${{ steps.gemini_implement.outputs.result }}"
-          
+
           pr_title=$(echo "$gemini_output" | awk '/---PR_TITLE---/{flag=1; next} /---PR_BODY---/{flag=0} flag' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
           pr_body=$(echo "$gemini_output" | awk '/---PR_BODY---/{flag=1; next} /---COMMIT_MESSAGE---/{flag=0} flag')
           commit_message=$(echo "$gemini_output" | awk '/---COMMIT_MESSAGE---/{flag=1; next} flag')
 
-          if [ -z "$pr_title" ]; then pr_title="feat: implement issue #${{ steps.get_branch.outputs.issue_number }}"; fi
-          if [ -z "$pr_body" ]; then pr_body="Auto-generated PR for issue #${{ steps.get_branch.outputs.issue_number }}.\n\n**Comment:**\n${{ github.event.comment.body }}"; fi
-          if [ -z "$commit_message" ]; then commit_message="feat: implement issue #${{ steps.get_branch.outputs.issue_number }} based on comment"; fi
-          
-          echo "pr_title=$(echo "$pr_title" | head -n 1)" >> $GITHUB_OUTPUT
+          # Fallback safely (no shell interpolation)
+          if [ -z "$pr_title" ]; then
+            pr_title="feat: implement issue #${{ steps.get_branch.outputs.issue_number }}"
+          fi
+
+          if [ -z "$pr_body" ]; then
+            pr_body=$(cat <<'EOF_PR_BODY'
+              Auto-generated PR for issue #${{ steps.get_branch.outputs.issue_number }}.
+
+              **Comment:**
+              ${{ github.event.comment.body }}
+              EOF_PR_BODY
+              )
+          fi
+
+          if [ -z "$commit_message" ]; then
+            commit_message="feat: implement issue #${{ steps.get_branch.outputs.issue_number }} based on comment"
+          fi
+
+          echo "pr_title=$(echo "$pr_title" | head -n 1)" >> "$GITHUB_OUTPUT"
+
           EOF_BODY=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "pr_body<<$EOF_BODY" >> $GITHUB_OUTPUT
-          echo "$pr_body" >> $GITHUB_OUTPUT
-          echo "$EOF_BODY" >> $GITHUB_OUTPUT
+          {
+            echo "pr_body<<$EOF_BODY"
+            printf '%s\n' "$pr_body"
+            echo "$EOF_BODY"
+          } >> "$GITHUB_OUTPUT"
+
           EOF_COMMIT=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "commit_message<<$EOF_COMMIT" >> $GITHUB_OUTPUT
-          echo "$commit_message" >> $GITHUB_OUTPUT
-          echo "$EOF_COMMIT" >> $GITHUB_OUTPUT
+          {
+            echo "commit_message<<$EOF_COMMIT"
+            printf '%s\n' "$commit_message"
+            echo "$EOF_COMMIT"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Commit and push changes
         run: |
@@ -209,6 +264,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -e
           BRANCH_NAME="${{ steps.get_branch.outputs.branch_name }}"
           PR_TITLE="${{ steps.extract_pr_info.outputs.pr_title }}"
           PR_BODY="${{ steps.extract_pr_info.outputs.pr_body }}"
