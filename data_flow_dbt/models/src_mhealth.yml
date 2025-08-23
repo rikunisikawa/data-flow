@@ -1,8 +1,102 @@
 version: 2
 
 sources:
-  - name: mhealth_stage
+  - name: mhealth_source
     database: awsdatacatalog
-    schema: stage_mhealth
+    schema: stage
+    description: "S3 stage bucket for mhealth data"
     tables:
       - name: raw_activities
+        description: "Raw activity data from sensors"
+        loaded_at_field: "date_parse(concat(year, '-', month, '-', day), '%Y-%m-%d')"
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+        partitions:
+          - name: year
+            data_type: varchar
+          - name: month
+            data_type: varchar
+          - name: day
+            data_type: varchar
+        columns:
+          - name: subject_id
+            description: "Identifier for the subject"
+            tests:
+              - not_null
+          - name: activity_label
+            description: "Label for the activity being performed"
+            tests:
+              - not_null
+          - name: acceleration_chest_x
+            tests:
+              - not_null
+          - name: acceleration_chest_y
+            tests:
+              - not_null
+          - name: acceleration_chest_z
+            tests:
+              - not_null
+          - name: electrocardiogram_lead_1
+            tests:
+              - not_null
+          - name: electrocardiogram_lead_2
+            tests:
+              - not_null
+          - name: acceleration_ankle_x
+            tests:
+              - not_null
+          - name: acceleration_ankle_y
+            tests:
+              - not_null
+          - name: acceleration_ankle_z
+            tests:
+              - not_null
+          - name: gyroscope_ankle_x
+            tests:
+              - not_null
+          - name: gyroscope_ankle_y
+            tests:
+              - not_null
+          - name: gyroscope_ankle_z
+            tests:
+              - not_null
+          - name: magnetometer_ankle_x
+            tests:
+              - not_null
+          - name: magnetometer_ankle_y
+            tests:
+              - not_null
+          - name: magnetometer_ankle_z
+            tests:
+              - not_null
+          - name: acceleration_right_lower_arm_x
+            tests:
+              - not_null
+          - name: acceleration_right_lower_arm_y
+            tests:
+              - not_null
+          - name: acceleration_right_lower_arm_z
+            tests:
+              - not_null
+          - name: gyroscope_right_lower_arm_x
+            tests:
+              - not_null
+          - name: gyroscope_right_lower_arm_y
+            tests:
+              - not_null
+          - name: gyroscope_right_lower_arm_z
+            tests:
+              - not_null
+          - name: magnetometer_right_lower_arm_x
+            tests:
+              - not_null
+          - name: magnetometer_right_lower_arm_y
+            tests:
+              - not_null
+          - name: magnetometer_right_lower_arm_z
+            tests:
+              - not_null
+          - name: label
+            tests:
+              - not_null
