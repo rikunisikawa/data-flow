@@ -148,23 +148,25 @@ resource "aws_iam_role" "sfn_execution_role" {
       },
     ]
   })
+}
 
-  inline_policy {
-    name = "StepFunctionsExecutionPolicy"
-    policy = jsonencode({
-      Version   = "2012-10-17"
-      Statement = [
-        {
-          Effect   = "Allow"
-          Action   = "lambda:InvokeFunction"
-          Resource = [
-            module.download_and_upload_lambda.function_arn,
-            module.convert_log_to_parquet_lambda.function_arn,
-          ]
-        }
-      ]
-    })
-  }
+resource "aws_iam_role_policy" "sfn_execution_policy" {
+  name = "StepFunctionsExecutionPolicy"
+  role = aws_iam_role.sfn_execution_role.id
+
+  policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "lambda:InvokeFunction"
+        Resource = [
+          module.download_and_upload_lambda.function_arn,
+          module.convert_log_to_parquet_lambda.function_arn,
+        ]
+      }
+    ]
+  })
 }
 
 # Role for GitHub Actions to assume for Terraform deployment
@@ -209,7 +211,8 @@ resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
           "s3:*",
           "lambda:*",
           "iam:*",
-          "states:*"
+          "states:*",
+          "glue:*"
         ]
         Resource = "*"
       }
