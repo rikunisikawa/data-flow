@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: fct_activity_features
+    description: "Final features table for mhealth data. This table contains time domain features and is ready for ML modeling."
+    columns:
+      - name: subject_id
+        description: "Identifier for the subject."
+        tests:
+          - not_null
+      - name: activity_label
+        description: "Identifier for the activity."
+        tests:
+          - not_null
+      - name: window_id
+        description: "Unique identifier for each window within a subject and activity."
+        tests:
+          - not_null
+          - unique:
+              scope: [subject_id, activity_label]

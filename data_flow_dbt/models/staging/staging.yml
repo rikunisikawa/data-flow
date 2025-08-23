@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: stg_mhealth_raw
+    description: "Staging model for mhealth raw data. Renames columns and adds a unique reading identifier."
+    columns:
+      - name: subject_id
+        description: "Identifier for the subject."
+        tests:
+          - not_null
+      - name: activity_label
+        description: "Identifier for the activity."
+        tests:
+          - not_null
+      - name: reading_id
+        description: "Unique identifier for each reading within a subject and activity."
+        tests:
+          - not_null
+          - unique:
+              scope: [subject_id, activity_label]
