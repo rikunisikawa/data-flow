@@ -6,3 +6,42 @@ sources:
     schema: stage_mhealth
     tables:
       - name: raw_activities
+        description: "ウェアラブルセンサから収集した10名の被験者の12種類の日常動作データ"
+        columns:
+          - name: subject_id
+            description: "被験者ID"
+            tests:
+              - not_null
+          - name: activity_id
+            description: "活動ID"
+            tests:
+              - not_null
+          - name: timestamp
+            description: "タイムスタンプ"
+            tests:
+              - not_null
+          - name: acc_chest_x
+          - name: acc_chest_y
+          - name: acc_chest_z
+          - name: ecg_lead_1
+          - name: ecg_lead_2
+          - name: acc_left_ankle_x
+          - name: acc_left_ankle_y
+          - name: acc_left_ankle_z
+          - name: gyro_left_ankle_x
+          - name: gyro_left_ankle_y
+          - name: gyro_left_ankle_z
+          - name: mag_left_ankle_x
+          - name: mag_left_ankle_y
+          - name: mag_left_ankle_z
+          - name: acc_right_wrist_x
+          - name: acc_right_wrist_y
+          - name: acc_right_wrist_z
+          - name: gyro_right_wrist_x
+          - name: gyro_right_wrist_y
+          - name: gyro_right_wrist_z
+          - name: mag_right_wrist_x
+          - name: mag_right_wrist_y
+          - name: mag_right_wrist_z
+          - name: label
+            description: "活動ラベル (0:不明, 1:立位, 2:座位, ...)"
