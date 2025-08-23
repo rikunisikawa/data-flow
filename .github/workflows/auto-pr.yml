@@ -110,8 +110,10 @@ jobs:
             # PRレビューコメントの場合
             PR_NUMBER=${{ github.event.pull_request.number }}
             BRANCH_NAME=$(gh pr view "$PR_NUMBER" --json headRefName -q .headRefName)
+            # Note: BASH_REMATCH is a shell variable, not a GitHub Actions context.
+            # It must be referenced as ${BASH_REMATCH[1]} and NOT ${{BASH_REMATCH[1]}}.
             if [[ "$BRANCH_NAME" =~ ^feature/issue-([0-9]+)$ ]]; then
-              ISSUE_NUMBER="${{BASH_REMATCH[1]}}"
+              ISSUE_NUMBER="${BASH_REMATCH[1]}"
             else
               echo "Could not extract issue number from branch name (PR review comment): $BRANCH_NAME"
               exit 1
@@ -122,8 +124,10 @@ jobs:
               # PR上のコメント
               PR_NUMBER=${{ github.event.issue.number }}
               BRANCH_NAME=$(gh pr view "$PR_NUMBER" --json headRefName -q .headRefName)
+              # Note: BASH_REMATCH is a shell variable, not a GitHub Actions context.
+              # It must be referenced as ${BASH_REMATCH[1]} and NOT ${{BASH_REMATCH[1]}}.
               if [[ "$BRANCH_NAME" =~ ^feature/issue-([0-9]+)$ ]]; then
-                ISSUE_NUMBER="${{BASH_REMATCH[1]}}"
+                ISSUE_NUMBER="${BASH_REMATCH[1]}"
               else
                 echo "Could not extract issue number from branch name (PR comment): $BRANCH_NAME"
                 exit 1
