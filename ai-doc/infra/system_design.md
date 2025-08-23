@@ -26,35 +26,37 @@
 
 ```
 s3://aws-data-platform-20250607/
-├── raw/        # Lambda① が保存（logファイル）
-├── stage/      # Lambda② or Glue① が保存（Parquet）
-└── processed/  # Glue② が保存（整形後Parquet）
+├── raw/        # Lambda が保存（logファイル）
+├── stage/      # Lambda or Glue が保存（Parquet）
+└── processed/  # dbt が保存（整形後Parquet）
 ```
 
 ---
 
 ## 🔄 データ処理フロー（ETL）
 
-| ステップ | 処理内容                                 | 実装先                |
-|----------|------------------------------------------|-----------------------|
-| ①        | Kaggle APIからlogファイル取得→S3保存     | Lambda①              |
-| ②        | log → Parquet形式に変換                  | Lambda②              |
-| ③        | dbtによるデータ変換・整形                | dbt (Athena経由)     |
-| ④        | dbtによるデータ品質テスト                | dbt (Athena経由)     |
+| ステップ | 処理内容 | 実装先 |
+|---|---|---|
+| ① | Kaggle APIからlogファイル取得→S3 `/raw/` に保存 | Lambda |
+| ② | log → Parquet形式に変換し、S3 `/stage/` に保存 | Lambda |
+| ③ | **dbtによるデータ変換**: S3 `/stage/` のデータをソースとし、`cleaned_activities` モデルを実行。`user_id`の抽出、各センサー加速度の平均値算出、不要データ（`activity_label=0`）の除外を行う。 | dbt (`dbt run`) |
+| ④ | **dbtによるデータ格納**: 変換後のデータをS3 `/processed/` にParquet形式でテーブルとして保存する。 | dbt (`dbt run`) |
+| ⑤ | **dbtによるデータ品質テスト**: `tests.yml` に基づき、データの整合性や品質をテストする。 | dbt (`dbt test`) |
 
 ---
 
 ## 📦 SAM定義リソース（template.yaml）
 
-- **Lambda①**：`download_and_upload.lambda_handler`
-- **Lambda②**：`convert_log_to_parquet.lambda_handler`
-- **Step Functions**：Lambda①→Lambda②の順次実行を制御
+- **Lambda Functions**：
+  - `download_and_upload.lambda_handler`
+  - `convert_log_to_parquet.lambda_handler`
+- **Step Functions**：2つのLambda関数を順次実行制御
 - **環境変数**：`BUCKET_NAME=aws-data-platform-20250607`
 - **EventBridge**：Step Functionsの定時実行トリガー
 
 ---
 
-## ✅ Lambda①（logダウンロード → S3保存）
+## ✅ Lambda（logダウンロード → S3保存）
 
 - **入力**：なし（定時実行）
 - **処理**：
@@ -98,7 +100,7 @@ def lambda_handler(event, context):
 
 ---
 
-## ✅ Lambda②（log → Parquet変換）
+## ✅ Lambda（log → Parquet変換）
 
 - **入力**：Step Functions経由での実行（S3イベントトリガーではない）
 - **処理**：
@@ -128,6 +130,10 @@ s3://aws-data-platform-20250607/stage/
   ...
 ```
 
+**dbtとの連携：**
+Lambdaによって `subject_id` をパーティションキーとしてS3パスに埋め込む一方、dbtモデル側ではそのファイルパスから `regexp_extract` を用いて `user_id` を抽出し、テーブル内の列として追加します。
+これにより、Athenaでのクエリ時にパーティションによるデータスキャン量の削減と、テーブル内での `user_id` を使った集計・分析が両立されます。
+
 **利点：**
 - 被験者ごとにデータを簡単にフィルタできる → クロス被験者検証に便利
 - ラベルごとにデータ分布を効率確認可能
@@ -135,20 +141,46 @@ s3://aws-data-platform-20250607/stage/
 
 ---
 
-## ✅ dbtによる変換・テスト
+## ✅ dbtモデル詳細
 
-- **入力**：S3 `/stage/*.parquet` （Athenaの外部テーブル経由）
-- **処理**：
-  - `dbt run` を実行し、/stage/の生データを変換・整形
-  - `dbt test` を実行し、データの品質をテスト
-- **出力**：S3 `/processed/` （dbtがAthena経由でテーブル作成）
-- **カタログ**：dbtがAthena/Glue Data Catalogにモデルに対応するテーブル・ビューを作成
+dbtプロジェクトは、S3 `/stage/` に保存されたParquetデータをAthena経由で読み込み、変換処理とデータ品質テストを実行します。最終的な成果物はS3 `/processed/` にテーブルとして保存されます。
+
+### dbtプロジェクト設定 (`dbt_project.yml`)
+
+- **デフォルトスキーマ**: `processed`
+  - `dbt run` で作成されるモデル（テーブル）は、特別な指定がない限り `processed` スキーマに出力されます。
+- **デフォルトマテリアライゼーション**: `table`
+  - モデルはAthena上でビューではなく、実体のあるテーブルとして作成されます。これにより、クエリパフォーマンスが向上します。
+
+### ソース定義 (`src_mhealth.yml`)
+
+- **データベース**: `awsdatacatalog`
+  - dbtはAWS Glueデータカタログをデータベースとして認識します。
+- **スキーマ**: `stage_mhealth`
+- **テーブル**: `raw_activities`
+  - このソーステーブルは、実質的にS3 `/stage/` ディレクトリにあるParquetデータを指し示すAthenaの外部テーブルです。
+
+### モデル仕様 (`cleaned_activities.sql`)
+
+`cleaned_activities` モデルは、ソースデータを変換し、分析に適した形式に整形する主要なロジックを担います。
+
+- **`user_id`の抽出**:
+  - S3のファイルパス（Athenaでは `$path` 列としてアクセス可能）から、`regexp_extract` 関数を用いて正規表現で `user_id` を抽出します。
+  - 例: `s3://.../mHealth_subject1_...` → `1`
+- **センサーデータの平均化**:
+  - 3つのセンサー（胸、左足首、右下腕）の3軸加速度（X, Y, Z）をそれぞれ平均し、`chest_acc_avg` のような新しい列を作成します。これにより、各センサーの全体的な活動量を単一の指標で評価しやすくなります。
+- **nullクラスの除外**:
+  - `activity_label` が `0` のデータは、どの活動にも分類されない「nullクラス」であるため、`WHERE`句で除外します。これにより、分析対象を意味のある活動データのみに絞り込みます。
 
 ---
 
-## ✅ Athena DDL（dbtのソース定義用）
+## ✅ Athena DDL
 
-dbtから参照する「生データ」のテーブルを定義します。このDDLは、dbtプロジェクトの外部で一度だけ実行する必要があります。
+dbtから参照する「生データ」のテーブルと、dbtによって生成される「変換後データ」のテーブル定義です。
+
+### ソーステーブル (`stage_mhealth.raw_activities`)
+
+このDDLは、dbtプロジェクトの外部で一度だけ実行し、S3 `/stage/` のデータを指すテーブルを作成する必要があります。
 
 ```sql
 CREATE DATABASE IF NOT EXISTS stage_mhealth;
@@ -179,9 +211,25 @@ CREATE EXTERNAL TABLE stage_mhealth.raw_activities (
   right_lower_arm_mag_z double,
   activity_label bigint
 )
-PARTITIONED BY (subject_id int, activity_label int)
+PARTITIONED BY (subject_id int)
 STORED AS PARQUET
 LOCATION 's3://aws-data-platform-20250607/stage/';
+```
+
+### dbt成果物テーブル (`processed.cleaned_activities`) - 参考
+
+`dbt run` を実行すると、`processed` スキーマに以下の構造を持つテーブルが作成されます。これはdbtによって自動的に管理されるため、手動でDDLを実行する必要はありません。
+
+```sql
+CREATE EXTERNAL TABLE `processed.cleaned_activities`(
+  `user_id` string, 
+  `activity_label` bigint,
+  `chest_acc_avg` double, 
+  `left_ankle_acc_avg` double, 
+  `right_lower_arm_acc_avg` double
+)
+STORED AS PARQUET
+LOCATION 's3://aws-data-platform-20250607/processed/cleaned_activities/'
 ```
 
 ---
@@ -189,7 +237,7 @@ LOCATION 's3://aws-data-platform-20250607/stage/';
 ## 🧪 テスト条件
 
 - Lambda関数は `sam local invoke` でローカルテストする
-- Glue②は最初にサンプルデータでテストしてAthenaでSELECT確認
+- dbtの変換処理は、サンプルデータを用いてテストし、AthenaでSELECT結果を確認する
 - 全体のStep Functionsは `sam deploy` 後、EventBridgeトリガーで動作確認
 
 ---
