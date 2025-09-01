@@ -1,7 +1,13 @@
-pytest
-pytest-mock
 boto3
+botocore
+freezegun
 moto[s3]
+mypy
 pandas
 pyarrow
-kaggle
+pytest
+pytest-cov
+pytest-mock
+requests
+ruff
+types-requests

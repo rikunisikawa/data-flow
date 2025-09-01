@@ -1,0 +1,29 @@
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests/unit",
+    "tests/integration",
+]
+
+[tool.ruff]
+line-length = 88
+select = ["E", "W", "F", "I", "C", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.coverage.run]
+branch = true
+source = [
+    "download_and_upload",
+    "convert_log_to_parquet",
+    "glue_job",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
