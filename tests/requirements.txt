@@ -1,7 +1,7 @@
 boto3
 botocore
 freezegun
-moto[s3]
+moto[s3,iam,glue,states]==5.0.9
 mypy
 pandas
 pyarrow
