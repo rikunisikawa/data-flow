@@ -3,9 +3,13 @@ version: 2
 models:
   - name: cleaned_activities
     columns:
-      - name: user_id
+      - name: activityID
+        tests:
+          - unique
+          - not_null
+      - name: subject_id
         tests:
           - not_null
-      - name: activity_label
+      - name: ts
         tests:
           - not_null

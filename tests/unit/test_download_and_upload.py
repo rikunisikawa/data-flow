@@ -1,91 +1,62 @@
 import os
-import zipfile
-from unittest.mock import MagicMock
+import boto3
 import pytest
-from download_and_upload import lambda_handler
+import requests_mock
+from download_and_upload import download_and_upload
 
-@pytest.fixture
-def mock_env(monkeypatch, s3_bucket):
-    monkeypatch.setenv("KAGGLE_USERNAME", "testuser")
-    monkeypatch.setenv("KAGGLE_KEY", "testkey")
-    monkeypatch.setenv("BUCKET_NAME", s3_bucket)
-    # Set tmp to a specific test directory to avoid clutter
-    monkeypatch.setenv("TMPDIR", "./tests/tmp")
-    os.makedirs("./tests/tmp/.kaggle", exist_ok=True)
-    yield s3_bucket
-    # Teardown
-    if os.path.exists("./tests/tmp"):
-        import shutil
-        shutil.rmtree("./tests/tmp")
+def test_handler_success(s3_client, monkeypatch):
+    # GIVEN
+    # Mock environment variables
+    monkeypatch.setenv("DOWNLOAD_URL", "http://test.com/data.txt")
+    monkeypatch.setenv("S3_BUCKET_NAME", "test-bucket")
+    monkeypatch.setenv("S3_KEY", "test-key.txt")
 
+    # Create mock S3 bucket
+    s3_client.create_bucket(Bucket="test-bucket")
 
-@pytest.fixture
-def mock_kaggle_api(mocker):
-    """Mocks the Kaggle API client."""
-    mock_api_instance = MagicMock()
-    mock_api_class = mocker.patch("download_and_upload.get_api")
-    mock_api_class.return_value = mock_api_instance
+    # Mock the request
+    url = "http://test.com/data.txt"
+    mock_content = b"This is a test file."
     
-    def create_zip_file(*args, **kwargs):
-        """Create a dummy zip file when download is called."""
-        zip_path = os.path.join(kwargs["path"], "mhealth-dataset-data-set.zip")
-        log_filename = "mHealth_subject1.log"
-        with zipfile.ZipFile(zip_path, 'w') as zf:
-            zf.writestr(f"mhealth/{log_filename}", "log data")
-    
-    mock_api_instance.dataset_download_files.side_effect = create_zip_file
-    return mock_api_instance
+    with requests_mock.Mocker() as m:
+        m.get(url, content=mock_content)
 
-def test_handler_success(mock_env, mock_kaggle_api, s3_client):
-    """
-    GIVEN a valid environment and a mocked Kaggle API
-    WHEN the lambda_handler is invoked
-    THEN it should download, extract, and upload the target log file to S3
-    """
-    bucket_name = mock_env
-    
-    # Act
-    result = lambda_handler({}, None)
+        # WHEN
+        result = download_and_upload.handler({}, {})
 
-    # Assert: Check status code and successful body
+    # THEN
     assert result["statusCode"] == 200
-    assert "Successfully uploaded 1 log files to S3" in result["body"]
-    assert result["uploaded_files"] == ["raw/mHealth_subject1.log"]
-
-    # Assert: Kaggle API was called correctly
-    mock_kaggle_api.dataset_download_files.assert_called_once_with(
-        'nirmalsankalana/mhealth-dataset-data-set', path='/tmp', unzip=False
-    )
     
-    # Assert: File was uploaded to S3 correctly
-    response = s3_client.get_object(Bucket=bucket_name, Key="raw/mHealth_subject1.log")
-    assert response["Body"].read().decode("utf-8") == "log data"
+    # Verify file in S3
+    s3_object = s3_client.get_object(Bucket="test-bucket", Key="test-key.txt")
+    assert s3_object["Body"].read() == mock_content
 
-def test_handler_missing_env_vars():
-    """
-    GIVEN a missing environment variable
-    WHEN the lambda_handler is invoked
-    THEN it should return a 500 error
-    """
-    # Act
-    result = lambda_handler({}, None)
+def test_handler_http_error(monkeypatch):
+    # GIVEN
+    monkeypatch.setenv("DOWNLOAD_URL", "http://test.com/data.txt")
+    monkeypatch.setenv("S3_BUCKET_NAME", "test-bucket")
+    monkeypatch.setenv("S3_KEY", "test-key.txt")
 
-    # Assert
-    assert result["statusCode"] == 500
-    assert "Required environment variables not set" in result["body"]
+    url = "http://test.com/data.txt"
+    with requests_mock.Mocker() as m:
+        m.get(url, status_code=404)
 
-def test_handler_kaggle_download_fails(mock_env, mock_kaggle_api):
-    """
-    GIVEN the Kaggle API download fails
-    WHEN the lambda_handler is invoked
-    THEN it should return a 500 error
-    """
-    # Arrange
-    mock_kaggle_api.dataset_download_files.side_effect = Exception("Kaggle API Error")
+        # WHEN/THEN
+        with pytest.raises(Exception) as e:
+            download_and_upload.handler({}, {})
+        assert "404 Client Error" in str(e.value)
 
-    # Act
-    result = lambda_handler({}, None)
+def test_handler_s3_error(s3_client, monkeypatch):
+    # GIVEN
+    monkeypatch.setenv("DOWNLOAD_URL", "http://test.com/data.txt")
+    monkeypatch.setenv("S3_BUCKET_NAME", "non-existent-bucket")
+    monkeypatch.setenv("S3_KEY", "test-key.txt")
 
-    # Assert
-    assert result["statusCode"] == 500
-    assert "Error: Kaggle API Error" in result["body"]
+    url = "http://test.com/data.txt"
+    with requests_mock.Mocker() as m:
+        m.get(url, content=b"test")
+
+        # WHEN/THEN
+        with pytest.raises(Exception) as e:
+            download_and_upload.handler({}, {})
+        assert "NoSuchBucket" in str(e.value)

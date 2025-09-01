@@ -1,90 +1,84 @@
+import json
 import os
-import io
 import pandas as pd
+import pyarrow.parquet as pq
 import pytest
-from convert_log_to_parquet import lambda_handler
+from convert_log_to_parquet import convert_log_to_parquet
 
 @pytest.fixture
-def mock_env(monkeypatch, s3_bucket):
-    monkeypatch.setenv("BUCKET_NAME", s3_bucket)
-    return s3_bucket
-
-def test_handler_success(mock_env, s3_client):
-    """
-    GIVEN a valid log file in the raw S3 prefix
-    WHEN the lambda_handler is invoked
-    THEN it should convert the log to a partitioned Parquet file in the stage prefix
-    """
-    bucket_name = mock_env
-    # Arrange: Read sample log data and upload to mock S3
-    with open("tests/data/mHealth_subject1.log", "rb") as f:
-        log_content = f.read()
-    s3_client.put_object(Bucket=bucket_name, Key="raw/subject1.log", Body=log_content)
+def s3_setup(s3_client):
+    s3_client.create_bucket(Bucket="test-input-bucket")
+    s3_client.create_bucket(Bucket="test-output-bucket")
     
-    # Act
-    result = lambda_handler({}, None)
+    # Upload a sample log file
+    sample_data = [{"id": 1, "data": "test"}]
+    s3_client.put_object(
+        Bucket="test-input-bucket",
+        Key="logs/sample.json",
+        Body=json.dumps(sample_data),
+    )
 
-    # Assert: Check status code and body
+def test_handler_success(s3_client, s3_setup, monkeypatch):
+    # GIVEN
+    monkeypatch.setenv("OUTPUT_S3_BUCKET_NAME", "test-output-bucket")
+    
+    # Mock S3 event
+    s3_event = {
+        "Records": [
+            {
+                "s3": {
+                    "bucket": {"name": "test-input-bucket"},
+                    "object": {"key": "logs/sample.json"},
+                }
+            }
+        ]
+    }
+
+    # WHEN
+    result = convert_log_to_parquet.handler(s3_event, {})
+
+    # THEN
     assert result["statusCode"] == 200
-    assert "Successfully processed 1" in result["body"]
-
-    # Assert: Check that two parquet files were created for the two activity labels
-    expected_keys = [
-        f"stage/subject_id=1/activity_label=1/data_1_1.parquet",
-        f"stage/subject_id=1/activity_label=2/data_1_2.parquet",
-    ]
     
-    listed_objects = s3_client.list_objects_v2(Bucket=bucket_name, Prefix="stage/")
-    found_keys = [obj['Key'] for obj in listed_objects.get('Contents', [])]
+    # Verify the output file
+    output_key = "format=parquet/logs/sample.parquet"
+    response = s3_client.get_object(Bucket="test-output-bucket", Key=output_key)
     
-    assert len(found_keys) == 2
-    assert sorted(found_keys) == sorted(expected_keys)
-
-    # Assert: Check content of one of the parquet files
-    obj = s3_client.get_object(Bucket=bucket_name, Key=expected_keys[0])
-    df = pd.read_parquet(io.BytesIO(obj['Body'].read()))
+    # Read parquet file from S3 and verify content
+    table = pq.read_table(response['Body'])
+    df = table.to_pandas()
     
-    assert len(df) == 2 # Two rows with activity_label=1
-    assert df['chest_acc_x'].iloc[0] == 1.0
-    assert df['chest_acc_x'].iloc[1] == 1.2
-    assert (df['activity_label'] == 1).all()
+    assert len(df) == 1
+    assert df.iloc[0]['id'] == 1
+    assert df.iloc[0]['data'] == "test"
 
-def test_handler_no_bucket_env():
-    """
-    GIVEN the BUCKET_NAME environment variable is not set
-    WHEN the lambda_handler is invoked
-    THEN it should return a 500 error
-    """
-    # Act
-    result = lambda_handler({}, None)
+def test_handler_no_records(caplog):
+    # GIVEN
+    empty_event = {"Records": []}
 
-    # Assert
-    assert result["statusCode"] == 500
-    assert "BUCKET_NAME not set" in result["body"]
+    # WHEN
+    result = convert_log_to_parquet.handler(empty_event, {})
 
-def test_handler_no_files_to_process(mock_env):
-    """
-    GIVEN there are no log files in the raw S3 prefix
-    WHEN the lambda_handler is invoked
-    THEN it should process 0 files and succeed
-    """
-    # Act
-    result = lambda_handler({}, None)
-
-    # Assert
+    # THEN
     assert result["statusCode"] == 200
-    assert "Successfully processed 0" in result["body"]
+    assert "No records found in the event" in caplog.text
 
-def test_handler_filename_no_match(mock_env, s3_client):
-    """
-    GIVEN a log file with a name that doesn't match the subject_id pattern
-    WHEN the lambda_handler is invoked
-    THEN it should skip the file and succeed
-    """
-    bucket_name = mock_env
-    s3_client.put_object(Bucket=bucket_name, Key="raw/invalid_filename.log", Body=b"data")
+def test_handler_s3_error(s3_client, monkeypatch):
+    # GIVEN
+    monkeypatch.setenv("OUTPUT_S3_BUCKET_NAME", "test-output-bucket")
     
-    result = lambda_handler({}, None)
-    
-    assert result["statusCode"] == 200
-    assert "Successfully processed 0" in result["body"]
+    s3_event = {
+        "Records": [
+            {
+                "s3": {
+                    "bucket": {"name": "non-existent-bucket"},
+                    "object": {"key": "logs/sample.json"},
+                }
+            }
+        ]
+    }
+
+    # WHEN/THEN
+    with pytest.raises(Exception) as e:
+        convert_log_to_parquet.handler(s3_event, {})
+    assert "NoSuchBucket" in str(e.value)

@@ -1,3 +1,5 @@
-{"timestamp": "2025-09-01T12:00:00Z", "level": "INFO", "message": "User logged in", "userId": "user1"}
-{"timestamp": "2025-09-01T12:01:00Z", "level": "INFO", "message": "User viewed page", "userId": "user1", "page": "/home"}
-{"timestamp": "2025-09-01T12:02:00Z", "level": "WARN", "message": "Failed login attempt", "userId": "user2"}
+[
+    {"timestamp": "2025-09-01T12:00:00Z", "event": "login", "user_id": "user1", "value": 100},
+    {"timestamp": "2025-09-01T12:01:00Z", "event": "click", "user_id": "user2", "value": 200},
+    {"timestamp": "2025-09-01T12:02:00Z", "event": "logout", "user_id": "user1", "value": 150}
+]
