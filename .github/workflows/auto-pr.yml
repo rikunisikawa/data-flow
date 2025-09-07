@@ -10,7 +10,25 @@ on:
     types: [created]
 
 jobs:
+  setup_spec_kit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Install uv (for specify CLI)
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "${HOME}/.local/bin" >> $GITHUB_PATH
+      - name: Bootstrap Spec Kit templates if missing (idempotent)
+        run: |
+          set -euo pipefail
+          if [ ! -d "templates" ] || [ ! -d "scripts" ]; then
+            uvx --from git+https://github.com/github/spec-kit.git specify init --here --ai gemini --ignore-agent-tools
+          else
+            echo "Spec Kit templates already present."
+          fi
   plan:
+    needs: setup_spec_kit
     if: github.event_name == 'issues' && github.event.action == 'opened'
     runs-on: ubuntu-latest
     permissions:
@@ -29,60 +47,69 @@ jobs:
         with:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
-            /background あなたは優秀なプロジェクトマネージャー兼ソフトウェアエンジニアです。
-            以下のIssueの内容を分析し、具体的な実装計画を作成してください。
-            計画はマークダウン形式で、`write_file`ツールを呼び出して `${{ github.workspace }}/.github/plans/issue-${{ github.event.issue.number }}.md` というファイルに保存してください。
+            /background あなたはSpec Kitのガイドラインに従う上級プロジェクトマネージャ兼ソフトウェアエンジニアです。
+            /background 以下のIssueをもとに新しい「機能」を開始してください。/specify により仕様を生成し、Spec Kit のスクリプトでブランチと specs ディレクトリを作成してください。
+            /background その後 /plan を実行し、必要なら /tasks まで進めてください（tasks は後ででも可）。Geminiのファイル/シェルツールを使って必要なファイルを保存してください。
+            /background 禁止事項: `.github/workflows` 配下は編集しない。run_shell_command で `$()`, `<()`, `()>` のようなコマンド置換は使用しない。
+            /specify
+            [Feature] issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
+            [Context]
+            ${{ github.event.issue.body }}
+            /plan この機能は既存レポジトリに段階的に追加します。現行のスタック/規約と整合し、テスト方針と影響範囲も含めて計画してください。
 
-            Issue Title: ${{ github.event.issue.title }}
-            Issue Body: ${{ github.event.issue.body }}
-
-      - name: Create and push plan branch
-        id: git_work
+      - name: Detect latest spec branch and dir
+        id: detect_spec
         run: |
-          set -e
-          BRANCH_NAME="feature/issue-${{ github.event.issue.number }}"
-          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin
-
-          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null;
-            then
-            echo "Branch $BRANCH_NAME already exists."
-            exit 0
-          fi
-
-          git switch -c "$BRANCH_NAME"
-
-          if [ -n "$(git status --porcelain)" ]; then
-            git add -A
-            git commit -m "feat(plan): create plan for issue #${{ github.event.issue.number }}"
-            git push -u origin "$BRANCH_NAME"
-          else
-            echo "No plan file was created by Gemini. Exiting."
+          set -euo pipefail
+          SPEC_DIR=$(ls -1d specs/* 2>/dev/null | sort | tail -n1 || true)
+          if [ -z "${SPEC_DIR}" ]; then
+            echo "No specs directory created."
             exit 1
           fi
-
-      - name: Create Pull Request for Plan
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH_NAME: ${{ steps.git_work.outputs.branch_name }}
+          BRANCH_NAME=$(grep -m1 -E '^Feature Branch:' "${SPEC_DIR}/spec.md" | sed -E 's/.*`([^`]+)`.*/\1/`)
+          if [ -z "${BRANCH_NAME}" ]; then
+            echo "Could not parse Feature Branch from ${SPEC_DIR}/spec.md"
+            exit 1
+          fi
+          echo "spec_dir=${SPEC_DIR}" >> "$GITHUB_OUTPUT"
+          echo "branch_name=${BRANCH_NAME}" >> "$GITHUB_OUTPUT"
+      - name: Commit & push spec/plan/tasks
         run: |
-          set -e
-          if gh pr view "$BRANCH_NAME" --json number -q . >/dev/null 2>&1;
-            then
-            echo "PR already exists for branch $BRANCH_NAME"
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "${{ steps.detect_spec.outputs.branch_name }}" || git switch "${{ steps.detect_spec.outputs.branch_name }}"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "spec: initialize ${{ steps.detect_spec.outputs.branch_name }} for issue #${{ github.event.issue.number }}"
+          fi
+          git push -u origin "${{ steps.detect_spec.outputs.branch_name }}"
+      - name: Create PR for Spec/Plan
+        run: |
+          set -euo pipefail
+          BR="${{ steps.detect_spec.outputs.branch_name }}"
+          BODY_FILE="$(mktemp)"
+          {
+            echo "This PR bootstraps Spec/Plan for **issue #${{ github.event.issue.number }}** using Spec Kit."
+            echo
+            echo "- Spec dir: \"\n`${{ steps.detect_spec.outputs.spec_dir }}`\"\n"
+            echo "- Branch: \"\n`$BR`\"\n"
+            echo
+            echo "次のステップ: 追記や修正はコメントで。実装を進める場合は Issue や PR に **/execute** とコメントしてください。"
+          } > "$BODY_FILE"
+          if gh pr view "$BR" --json number -q .number >/dev/null 2>&1; then
+            gh pr edit "$BR" --title "Spec: ${BR} for issue #${{ github.event.issue.number }}" --body-file "$BODY_FILE"
           else
             gh pr create \
-              --title "Plan: Implementation plan for issue #${{ github.event.issue.number }}" \
-              --body "This PR contains the implementation plan for issue #${{ github.event.issue.number }}.\n\nPlease review the plan. To proceed with implementation, comment \"/execute\" on the issue or PR (including review comments) with any additional instructions." \
+              --title "Spec: ${BR} for issue #${{ github.event.issue.number }}" \
+              --body-file "$BODY_FILE" \
               --base main \
-              --head "$BRANCH_NAME" \
-              --label "plan"
+              --head "$BR" \
+              --label "spec-kit,plan"
           fi
 
   implement:
+    needs: setup_spec_kit
     if: contains(github.event.comment.body, '/execute')
     runs-on: ubuntu-latest
     permissions:
@@ -158,53 +185,41 @@ jobs:
           ref: ${{ steps.get_branch.outputs.branch_name }}
           fetch-depth: 0
 
-      - name: Read plan file
-        id: read_plan
+      - name: Locate plan.md for this feature
+        id: find_plan
         run: |
-          set -e
-          PLAN_FILE=".github/plans/issue-${{ steps.get_branch.outputs.issue_number }}.md"
-          EOF_KEY=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-
-          if [ ! -f "$PLAN_FILE" ]; then
-            {
-              echo "content<<$EOF_KEY"
-              echo "Plan file not found. Proceeding with issue title and body only."
-              echo "$EOF_KEY"
-            } >> "$GITHUB_OUTPUT"
-          else
-            {
-              echo "content<<$EOF_KEY"
-              cat "$PLAN_FILE"
-              echo "$EOF_KEY"
-            } >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          SPEC_DIR="$(ls -1d specs/* 2>/dev/null | sort | tail -n1 || true)"
+          if [ -z "${SPEC_DIR}" ]; then
+            echo "No specs dir found."
+            exit 1
           fi
-
-      - name: Run Gemini CLI for implementation
+          PLAN="${SPEC_DIR}/plan.md"
+          if [ ! -f "$PLAN" ]; then
+            echo "plan.md not found at $PLAN"
+            exit 1
+          fi
+          echo "spec_dir=$SPEC_DIR" >> "$GITHUB_OUTPUT"
+          echo "plan=$PLAN" >> "$GITHUB_OUTPUT"
+      - name: Implement with Gemini (Spec Kit)
         id: gemini_implement
         uses: google-gemini/gemini-cli-action@main
         with:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
-            /background あなたはプロのソフトウェアエンジニアです。以下のIssue、最新のコメント、そして承認された計画に基づき、必要なすべてのコード変更を行ってください。
-            コメントはIssue、PR、レビューコメントいずれの場合も反映してください。
-            コード変更が完了したら、以下の区切り線を使って、この変更を説明するPull Requestのタイトル、本文、そしてコミットメッセージを生成してください。
-
-            **重要**: `.github/workflows`ディレクトリ内のファイルは絶対に編集しないでください。
-            **重要**: `run_shell_command`ツールを使用する際は、セキュリティ上の理由から、`$()`、`<()`、`>()`のようなコマンド置換は使用しないでください。
-
-            Issue Title: ${{ github.event.issue.title }}
-            Issue Body: ${{ github.event.issue.body }}
-            Latest Comment: ${{ github.event.comment.body }}
-
-            Approved Plan:
-            ${{ steps.read_plan.outputs.content }}
-
+            /background あなたはプロのソフトウェアエンジニアです。Spec Kit で作成された計画に従い、このPRブランチに必要な全コードを実装してください。
+            /background 禁止事項: `.github/workflows` は編集しない。run_shell_command での `$()`, `<()`, `()>` は使わない。
+            /background 参考: 最新コメントは以下。要件に反映してください。
+            ${{ github.event.comment.body }}
+            次を実行してください:
+            implement ${{ steps.find_plan.outputs.plan }}
             ---PR_TITLE---
-            [ここにPRのタイトルを記述。必ず "issue #${{ steps.get_branch.outputs.issue_number }}" を含めてください]
+            feat: implement ${{ steps.get_branch.outputs.branch_name }}
             ---PR_BODY---
-            [ここにPRの本文を記述。変更内容の全体像がわかるようにまとめてください。]
+            このPRは Spec Kit の計画 (`${{ steps.find_plan.outputs.plan }}`) に基づき自動実装を行いました。
+            変更概要・影響範囲・テスト観点を記載し、必要ならタスクの残項目を列挙してください。
             ---COMMIT_MESSAGE---
-            [ここに機能変更を要約したコミットメッセージを記述]
+            feat: implement according to spec-kit plan
 
       - name: Extract PR info or set fallback
         id: extract_pr_info

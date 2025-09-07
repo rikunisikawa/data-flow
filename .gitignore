@@ -38,3 +38,6 @@ layer/*.zip
 
 # Layer build artifacts
 layer/terraform/artifacts/
+
+# Workflow backup files
+.github/workflows/*.bak
