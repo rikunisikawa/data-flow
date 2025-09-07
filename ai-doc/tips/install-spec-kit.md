@@ -80,3 +80,61 @@ AIエージェントを gemini に指定することで、Copilot や Claude の
 生成物（仕様・計画・タスク）は全てファイル化される → GitHub リポジトリで管理可能
 
 👉 この流れで、Geminiをバックエンドにして Spec Kit を導入できます。
+
+
+log
+
+riku_nishikawa@TABLET-75V7LCN2:~/dev/data-flow$ curl -LsSf https://astral.sh/uv/install.sh | sh
+downloading uv 0.8.15 x86_64-unknown-linux-gnu
+no checksums to verify
+installing to /home/riku_nishikawa/.local/bin
+  uv
+  uvx
+everything's installed!
+
+riku_nishikawa@TABLET-75V7LCN2:~/dev/data-flow$ uvx --from git+https://github.com/github/spec-kit.git specify init --here --ai gemini
+    Updated https://github.com/github/spec-kit.git (7176d2
+      Built specify-cli @ git+https://github.com/github/sp
+Installed 18 packages in 80ms
+ ███████╗██████╗ ███████╗ ██████╗██╗███████╗██╗   ██╗ 
+ ██╔════╝██╔══██╗██╔════╝██╔════╝██║██╔════╝╚██╗ ██╔╝ 
+ ███████╗██████╔╝█████╗  ██║     ██║█████╗   ╚████╔╝  
+ ╚════██║██╔═══╝ ██╔══╝  ██║     ██║██╔══╝    ╚██╔╝   
+ ███████║██║     ███████╗╚██████╗██║██║        ██║    
+ ╚══════╝╚═╝     ╚══════╝ ╚═════╝╚═╝╚═╝        ╚═╝    
+                                                      
+           Spec-Driven Development Toolkit            
+
+Warning: Current directory is not empty (31 items)
+Template files will be merged with existing content 
+and may overwrite existing files
+Do you want to continue? [y/N]:         y
+╭──────────────────────────────────────────────╮
+│ Specify Project Setup                        │
+│ Initializing in current directory: data-flow │
+│ Path: /home/riku_nishikawa/dev/data-flow     │
+╰──────────────────────────────────────────────╯
+Initialize Specify Project
+├── ● Check required tools (ok)
+├── ● Select AI assistant (gemini)
+├── ● Fetch latest release (release v0.0.14 (22,728 
+│   bytes))
+├── ● Download template 
+│   (spec-kit-template-gemini-v0.0.14.zip)
+├── ● Extract template
+├── ● Archive contents (20 entries)
+├── ● Extraction summary (temp 4 items)
+├── ● Cleanup
+├── ● Initialize git repository (existing repo 
+│   detected)
+└── ● Finalize (project ready)
+
+Project ready.
+
+
+
+
+uvx --from git+https://github.com/github/spec-kit.git specify run /specify "このデータ基盤におけるテストを実装する"
+uvx --from git+https://github.com/github/spec-kit.git specify run /plan "技術スタック..."
+uvx --from git+https://github.com/github/spec-kit.git specify run /tasks "タスク分解..."
+
