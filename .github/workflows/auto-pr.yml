@@ -1,33 +1,4 @@
-# Issue #78: GitHub ActionsにSpec Kitを導入するための実装計画
-
-## 1. 概要
-
-本計画は、Issue #78で提案された、Spec Kitを活用した仕様駆動開発（Spec-Driven Development）を自動化するGitHub Actionsワークフローを導入するための実装計画を定義します。
-
-Issueで提供されたYAML定義に基づき、Issue起票から仕様・計画の策定、そして実装までを半自動化する新しいワークフローを構築します。
-
-## 2. 実装方針
-
-- **ワークフローファイルの新規作成**:
-  - 既存のワークフロー（`.github/workflows/`内のファイル）は変更せず、新しいワークフローファイルとして `.github/workflows/spec-driven-development.yml` を作成します。これにより、既存のCI/CDプロセスへの影響を避けつつ、新機能を追加します。
-- **Issue提供のYAMLをベースに採用**:
-  - Issueに記載されているワークフロー定義をほぼそのまま採用します。ただし、一部のアクション参照に修正が必要な箇所は、適切な形式に修正します。
-- **前提条件の明確化**:
-  - ワークフローが正常に動作するために必要なシークレット（`GEMINI_API_KEY`）について、リポジトリに設定されている必要があることを明記します。
-
-## 3. 作業タスク
-
-### 3.1. ワークフローファイルの作成
-
-新しいGitHub Actionsワークフローファイルを以下の仕様で作成します。
-
-- **ファイルパス**: `/home/runner/work/data-flow/data-flow/.github/workflows/spec-driven-development.yml`
-- **内容**:
-  - Issueで提供されたYAML定義を基に作成します。
-  - `uses: google-gemini/gemini-cli-action@terraform/main.tf` という参照は、GitHub Actionsの標準的な参照形式ではないため、より一般的で動作可能性の高い `google-gemini/gemini-cli-action@main` に修正します。これは、アクションのmainブランチを追跡することを意味します。
-
-```yaml
-name: "Spec-Driven Plan and Implement"
+name: "Plan and Implement on Issue"
 
 on:
   workflow_dispatch:
@@ -56,7 +27,6 @@ jobs:
           else
             echo "Spec Kit templates already present."
           fi
-
   plan:
     needs: setup_spec_kit
     if: github.event_name == 'issues' && github.event.action == 'opened'
@@ -65,39 +35,40 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - name: Specify (and optionally plan/tasks) with Gemini via Spec Kit
-        id: gemini_specify
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Create Plan with Gemini
         uses: google-gemini/gemini-cli-action@main
         with:
-          GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
             /background あなたはSpec Kitのガイドラインに従う上級プロジェクトマネージャ兼ソフトウェアエンジニアです。
             /background 以下のIssueをもとに新しい「機能」を開始してください。/specify により仕様を生成し、Spec Kit のスクリプトでブランチと specs ディレクトリを作成してください。
             /background その後 /plan を実行し、必要なら /tasks まで進めてください（tasks は後ででも可）。Geminiのファイル/シェルツールを使って必要なファイルを保存してください。
-            /background 禁止事項: `.github/workflows` 配下は編集しない。run_shell_command で `$()`, `<()>`, `()>` のようなコマンド置換は使用しない。
+            /background 禁止事項: `.github/workflows` 配下は編集しない。run_shell_command で `$()`, `<()`, `()>` のようなコマンド置換は使用しない。
             /specify
             [Feature] issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
             [Context]
             ${{ github.event.issue.body }}
             /plan この機能は既存レポジトリに段階的に追加します。現行のスタック/規約と整合し、テスト方針と影響範囲も含めて計画してください。
+
       - name: Detect latest spec branch and dir
         id: detect_spec
         run: |
           set -euo pipefail
-          SPEC_DIR="$(ls -1d specs/* 2>/dev/null | sort | tail -n1 || true)"
+          SPEC_DIR=$(ls -1d specs/* 2>/dev/null | sort | tail -n1 || true)
           if [ -z "${SPEC_DIR}" ]; then
-            echo "No specs directory created." >&2
+            echo "No specs directory created."
             exit 1
           fi
-          BRANCH_NAME="$(grep -m1 -E '^Feature Branch:' "${SPEC_DIR}/spec.md" | sed -E 's/.*`([^`]+)`.*/\1/')"
+          BRANCH_NAME=$(grep -m1 -E '^Feature Branch:' "${SPEC_DIR}/spec.md" | awk -F'`' "{print \$2}")
           if [ -z "${BRANCH_NAME}" ]; then
-            echo "Could not parse Feature Branch from ${SPEC_DIR}/spec.md" >&2
+            echo "Could not parse Feature Branch from ${SPEC_DIR}/spec.md"
             exit 1
           fi
           echo "spec_dir=${SPEC_DIR}" >> "$GITHUB_OUTPUT"
@@ -121,8 +92,8 @@ jobs:
           {
             echo "This PR bootstraps Spec/Plan for **issue #${{ github.event.issue.number }}** using Spec Kit."
             echo
-            echo "- Spec dir: \"`${{ steps.detect_spec.outputs.spec_dir }}`\""
-            echo "- Branch: \"`BR`\""
+            echo "- Spec dir: \"\n`${{ steps.detect_spec.outputs.spec_dir }}`\"\n"
+            echo "- Branch: \"\n`$BR`\"\n"
             echo
             echo "次のステップ: 追記や修正はコメントで。実装を進める場合は Issue や PR に **/execute** とコメントしてください。"
           } > "$BODY_FILE"
@@ -138,7 +109,7 @@ jobs:
           fi
 
   implement:
-    needs: [setup_spec_kit]
+    needs: setup_spec_kit
     if: contains(github.event.comment.body, '/execute')
     runs-on: ubuntu-latest
     permissions:
@@ -146,41 +117,87 @@ jobs:
       pull-requests: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - name: Resolve PR/branch for the /execute trigger
-        id: resolve_branch
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Determine issue number and branch name
+        id: get_branch
         run: |
-          set -euo pipefail
-          EVENT="${{ github.event_name }}"
-          if [ "$EVENT" = "pull_request_review_comment" ]; then
-            PR=${{ github.event.pull_request.number }}
-          elif [ -n "${{ github.event.issue.pull_request }}" ]; then
-            PR=${{ github.event.issue.number }}
+          set -e
+          ISSUE_NUMBER=""
+          BRANCH_NAME=""
+
+          EVENT_NAME="${{ github.event_name }}"
+
+          if [ "$EVENT_NAME" = "pull_request_review_comment" ]; then
+            # PRレビューコメントの場合
+            PR_NUMBER=${{ github.event.pull_request.number }}
+            BRANCH_NAME=$(gh pr view "$PR_NUMBER" --json headRefName -q .headRefName)
+            # Note: BASH_REMATCH is a shell variable, not a GitHub Actions context.
+            # It must be referenced as ${BASH_REMATCH[1]}.
+            if [[ "$BRANCH_NAME" =~ ^feature/issue-([0-9]+)$ ]]; then
+              ISSUE_NUMBER="${BASH_REMATCH[1]}"
+            else
+              echo "Could not extract issue number from branch name (PR review comment): $BRANCH_NAME"
+              exit 1
+            fi
+          elif [ "$EVENT_NAME" = "issue_comment" ]; then
+            # Issueコメント（Issue or PR）場合
+            if [[ -n "${{ github.event.issue.pull_request }}" ]]; then
+              # PR上のコメント
+              PR_NUMBER=${{ github.event.issue.number }}
+              BRANCH_NAME=$(gh pr view "$PR_NUMBER" --json headRefName -q .headRefName)
+              # Note: BASH_REMATCH is a shell variable, not a GitHub Actions context.
+              # It must be referenced as ${BASH_REMATCH[1]}.
+              if [[ "$BRANCH_NAME" =~ ^feature/issue-([0-9]+)$ ]]; then
+                ISSUE_NUMBER="${BASH_REMATCH[1]}"
+              else
+                echo "Could not extract issue number from branch name (PR comment): $BRANCH_NAME"
+                exit 1
+              fi
+            else
+              # 純粋なIssue上のコメント
+              ISSUE_NUMBER=${{ github.event.issue.number }}
+              BRANCH_NAME="feature/issue-$ISSUE_NUMBER"
+            fi
           else
-            echo "This /execute must be used on a PR (for spec-kit implement)."
+            echo "Unsupported event: $EVENT_NAME"
             exit 1
           fi
-          BRANCH_NAME="$(gh pr view "$PR" --json headRefName -q .headRefName)"
-          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
-      - name: Checkout feature branch
-        uses: actions/checkout@v4
+
+          if [[ -z "$ISSUE_NUMBER" || -z "$BRANCH_NAME" ]]; then
+            echo "Failed to determine issue number or branch name."
+            exit 1
+          fi
+
+          {
+            echo "branch_name=$BRANCH_NAME"
+            echo "issue_number=$ISSUE_NUMBER"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout branch
+        uses: actions/checkout@v3
         with:
-          ref: ${{ steps.resolve_branch.outputs.branch_name }}
+          ref: ${{ steps.get_branch.outputs.branch_name }}
           fetch-depth: 0
+
       - name: Locate plan.md for this feature
         id: find_plan
         run: |
           set -euo pipefail
           SPEC_DIR="$(ls -1d specs/* 2>/dev/null | sort | tail -n1 || true)"
           if [ -z "${SPEC_DIR}" ]; then
-            echo "No specs dir found." >&2; exit 1
+            echo "No specs dir found."
+            exit 1
           fi
           PLAN="${SPEC_DIR}/plan.md"
           if [ ! -f "$PLAN" ]; then
-            echo "plan.md not found at $PLAN" >&2; exit 1
+            echo "plan.md not found at $PLAN"
+            exit 1
           fi
           echo "spec_dir=$SPEC_DIR" >> "$GITHUB_OUTPUT"
           echo "plan=$PLAN" >> "$GITHUB_OUTPUT"
@@ -188,66 +205,99 @@ jobs:
         id: gemini_implement
         uses: google-gemini/gemini-cli-action@main
         with:
-          GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
             /background あなたはプロのソフトウェアエンジニアです。Spec Kit で作成された計画に従い、このPRブランチに必要な全コードを実装してください。
-            /background 禁止事項: `.github/workflows` は編集しない。run_shell_command での `$()`, `<()>`, `()>` は使わない。
+            /background 禁止事項: `.github/workflows` は編集しない。run_shell_command での `$()`, `<()`, `()>` は使わない。
             /background 参考: 最新コメントは以下。要件に反映してください。
             ${{ github.event.comment.body }}
             次を実行してください:
             implement ${{ steps.find_plan.outputs.plan }}
             ---PR_TITLE---
-            feat: implement ${{ steps.resolve_branch.outputs.branch_name }}
+            feat: implement ${{ steps.get_branch.outputs.branch_name }}
             ---PR_BODY---
             このPRは Spec Kit の計画 (`${{ steps.find_plan.outputs.plan }}`) に基づき自動実装を行いました。
             変更概要・影響範囲・テスト観点を記載し、必要ならタスクの残項目を列挙してください。
             ---COMMIT_MESSAGE---
             feat: implement according to spec-kit plan
-      - name: Extract PR info
-        id: extract_pr
+
+      - name: Extract PR info or set fallback
+        id: extract_pr_info
         env:
-          RESULT: ${{ steps.gemini_implement.outputs.result }}
+          FALLBACK_PR_BODY: |
+            Auto-generated PR for issue #${{ steps.get_branch.outputs.issue_number }}.
+
+            **Comment:**
+            ${{ github.event.comment.body }}
         run: |
-          set -euo pipefail
-          pr_title="$(printf '%s\n' "$RESULT" | awk '/---PR_TITLE---/{flag=1;next}/---PR_BODY---/{flag=0}flag' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-          pr_body="$(printf '%s\n' "$RESULT" | awk '/---PR_BODY---/{flag=1;next}/---COMMIT_MESSAGE---/{flag=0}flag')"
-          commit_msg="$(printf '%s\n' "$RESULT" | awk '/---COMMIT_MESSAGE---/{flag=1;next}flag')"
-          [ -z "$pr_title" ] && pr_title="feat: implement ${{ steps.resolve_branch.outputs.branch_name }}"
-          [ -z "$pr_body" ] && pr_body="Auto-implemented via Spec Kit plan."
-          [ -z "$commit_msg" ] && commit_msg="feat: implement via spec-kit"
+          set -e
+          gemini_output="${{ steps.gemini_implement.outputs.result }}"
+
+          pr_title=$(echo "$gemini_output" | awk '/---PR_TITLE---/{flag=1; next} /---PR_BODY---/{flag=0} flag' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          pr_body=$(echo "$gemini_output" | awk '/---PR_BODY---/{flag=1; next} /---COMMIT_MESSAGE---/{flag=0} flag')
+          commit_message=$(echo "$gemini_output" | awk '/---COMMIT_MESSAGE---/{flag=1; next} flag')
+
+          # Fallback safely (no shell interpolation)
+          if [ -z "$pr_title" ]; then
+            pr_title="feat: implement issue #${{ steps.get_branch.outputs.issue_number }}"
+          fi
+
+          if [ -z "$pr_body" ]; then
+            pr_body="$FALLBACK_PR_BODY"
+          fi
+
+          if [ -z "$commit_message" ]; then
+            commit_message="feat: implement issue #${{ steps.get_branch.outputs.issue_number }} based on comment"
+          fi
+
+          echo "pr_title=$(echo "$pr_title" | head -n 1)" >> "$GITHUB_OUTPUT"
+
+          EOF_BODY=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           {
-            echo "title<<EOF"; echo "$pr_title"; echo "EOF";
-            echo "body<<EOF"; echo "$pr_body"; echo "EOF";
-            echo "commit<<EOF"; echo "$commit_msg"; echo "EOF";
+            echo "pr_body<<$EOF_BODY"
+            printf '%s\n' "$pr_body"
+            echo "$EOF_BODY"
           } >> "$GITHUB_OUTPUT"
-      - name: Commit & push changes
+
+          EOF_COMMIT=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          {
+            echo "commit_message<<$EOF_COMMIT"
+            printf '%s\n' "$commit_message"
+            echo "$EOF_COMMIT"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push changes
         run: |
-          set -euo pipefail
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [ -n "$(git status --porcelain)" ]; then
             git add -A
-            git commit -m "${{ steps.extract_pr.outputs.commit }}"
+            git commit -m "${{ steps.extract_pr_info.outputs.commit_message }}"
             git push
           else
             echo "No changes to commit."
           fi
-      - name: Open or update PR
+
+      - name: Update Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
-          BR="${{ steps.resolve_branch.outputs.branch_name }}"
-          BODY_FILE="$(mktemp)"; printf '%s' "${{ steps.extract_pr.outputs.body }}" > "$BODY_FILE"
-          if gh pr view "$BR" --json number -q .number >/dev/null 2>&1; then
-            gh pr edit "$BR" --title "${{ steps.extract_pr.outputs.title }}" --body-file "$BODY_FILE"
+          set -Eeuo pipefail
+
+          BRANCH_NAME="${{ steps.get_branch.outputs.branch_name }}"
+          PR_TITLE="${{ steps.extract_pr_info.outputs.pr_title }}"
+
+          # 本文は直接代入せずファイルへ
+          BODY_FILE="$(mktemp)"
+          printf '%s' "${{ steps.extract_pr_info.outputs.pr_body }}" > "$BODY_FILE"
+
+          PR_NUMBER="$(gh pr list --head "$BRANCH_NAME" --json number -q '.[0].number' || true)"
+
+          if [ -z "${PR_NUMBER:-}" ]; then
+            echo "Could not find a PR for branch $BRANCH_NAME. Creating a new one."
+            gh pr create --title "$PR_TITLE" --body-file "$BODY_FILE" --base main --head "$BRANCH_NAME" --label "auto-generated,plan-approved"
           else
-            gh pr create --title "${{ steps.extract_pr.outputs.title }}" --body-file "$BODY_FILE" --base main --head "$BR"
+            echo "Updating PR #$PR_NUMBER with title: $PR_TITLE"
+            gh pr edit "$PR_NUMBER" --title "$PR_TITLE" --body-file "$BODY_FILE"
           fi
-```
-
-## 4. 前提条件
-
-- 本ワークフローは `GEMINI_API_KEY` を使用してGemini APIと通信します。事前にリポジトリの `Settings > Secrets and variables > Actions` で `GEMINI_API_KEY` を登録しておく必要があります。
-
-## 5. 今後のステップ
-
-本計画にご承認いただけましたら、上記内容で `.github/workflows/spec-driven-development.yml` を作成します。
