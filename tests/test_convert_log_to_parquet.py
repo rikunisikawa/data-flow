@@ -36,8 +36,9 @@ def test_lambda_handler_success(s3_client, mock_env):
     s3_client.create_bucket(Bucket=bucket_name)
 
     # Create a dummy log file and upload to mock S3
-    log_content = " ".join(["0.0"] * 24) + "\n"
-    s3_client.put_object(Bucket=bucket_name, Key='raw/mHealth_subject1.log', Body=log_content)
+    # The last column is activity_label, set to 1
+    log_content = " ".join(["0.0"] * 23) + " 1\n"
+    s3_client.put_object(Bucket=bucket_name, Key='raw/subject1.log', Body=log_content)
     s3_client.put_object(Bucket=bucket_name, Key='raw/not_a_log.txt', Body='some data')
 
     # Run the handler
@@ -45,11 +46,10 @@ def test_lambda_handler_success(s3_client, mock_env):
 
     # Assertions
     assert result['statusCode'] == 200
-    assert 'Successfully converted 1 log files to Parquet' in result['body']
-    assert result['convertedFiles'] == ['stage/mHealth_subject1.parquet']
+    assert 'Successfully processed 1 log files into partitioned Parquet dataset.' in result['body']
 
     # Verify the parquet file content
-    response = s3_client.get_object(Bucket=bucket_name, Key='stage/mHealth_subject1.parquet')
+    response = s3_client.get_object(Bucket=bucket_name, Key='stage/subject_id=1/activity_label=1/data_1_1.parquet')
     parquet_file = pq.read_table(io.BytesIO(response['Body'].read()))
     df = parquet_file.to_pandas()
 
@@ -65,8 +65,8 @@ def test_lambda_handler_no_log_files(s3_client, mock_env):
     result = convert_log_to_parquet.lambda_handler({}, {})
 
     assert result['statusCode'] == 200
-    assert 'Successfully converted 0 log files to Parquet' in result['body']
-    assert len(result['convertedFiles']) == 0
+    assert 'Successfully processed 0 log files into partitioned Parquet dataset.' in result['body']
+
 
 def test_lambda_handler_no_env_var():
     result = convert_log_to_parquet.lambda_handler({}, {})
