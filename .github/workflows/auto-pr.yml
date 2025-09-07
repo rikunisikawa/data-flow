@@ -56,21 +56,63 @@ jobs:
             [Context]
             ${{ github.event.issue.body }}
             /plan この機能は既存レポジトリに段階的に追加します。現行のスタック/規約と整合し、テスト方針と影響範囲も含めて計画してください。
+      - name: Persist generated spec/plan (commit if any)
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "chore(spec-kit): persist generated spec/plan"
+          else
+            echo "No changes from Gemini step."
+          fi
 
-      - name: Detect latest spec branch and dir
+      - name: Detect or create spec dir and branch (robust)
         id: detect_spec
         run: |
           set -euo pipefail
-          SPEC_DIR=$(ls -1d specs/* 2>/dev/null | sort | tail -n1 || true)
+
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          DEFAULT_BRANCH="feature/issue-${ISSUE_NUMBER}"
+
+          # 直近の specs ディレクトリを探索（無ければ空文字）
+          SPEC_DIR="$(ls -1d specs/* 2>/dev/null | sort | tail -n1 || true)"
+
+          # 無ければ自前で作成（例: specs/20250907-issue-123）
           if [ -z "${SPEC_DIR}" ]; then
-            echo "No specs directory created."
-            exit 1
+            TS="$(date +%Y%m%d-%H%M%S)"
+            SPEC_DIR="specs/${TS}-issue-${ISSUE_NUMBER}"
+            mkdir -p "${SPEC_DIR}"
+            cat > "${SPEC_DIR}/spec.md" <<'EOF'
+          Spec
+
+          Title: (auto-created spec)
+          Feature Branch: REPLACE_ME
+
+          Context
+
+          (この spec はフォールバックとして自動生成されました。Gemini 実行で上書きされても構いません)
+          EOF
+            # フォールバックのブランチ名を書き込む
+            sed -i "s/REPLACE_ME/${DEFAULT_BRANCH}/" "${SPEC_DIR}/spec.md"
+            # ついでに空の plan.md も用意（後段が参照する可能性があるため）
+            touch "${SPEC_DIR}/plan.md"
+            echo "Created fallback spec at ${SPEC_DIR}"
           fi
-          BRANCH_NAME=$(grep -m1 -E '^Feature Branch:' "${SPEC_DIR}/spec.md" | awk -F'`' "{print \$2}")
+
+          # spec.md から Feature Branch を抽出（失敗時は DEFAULT_BRANCH）
+          SPEC_MD="${SPEC_DIR}/spec.md"
+          if [ -f "${SPEC_MD}" ]; then
+            BRANCH_NAME="$(grep -m1 -E '^Feature Branch:' "${SPEC_MD}" | awk -F'`' '{print $2}' || true)"
+          else
+            BRANCH_NAME=""
+          fi
           if [ -z "${BRANCH_NAME}" ]; then
-            echo "Could not parse Feature Branch from ${SPEC_DIR}/spec.md"
-            exit 1
+            BRANCH_NAME="${DEFAULT_BRANCH}"
+            echo "Feature Branch not found in ${SPEC_MD}. Fallback to ${BRANCH_NAME}"
           fi
+
           echo "spec_dir=${SPEC_DIR}" >> "$GITHUB_OUTPUT"
           echo "branch_name=${BRANCH_NAME}" >> "$GITHUB_OUTPUT"
       - name: Commit & push spec/plan/tasks
@@ -90,12 +132,10 @@ jobs:
           BR="${{ steps.detect_spec.outputs.branch_name }}"
           BODY_FILE="$(mktemp)"
           {
-            echo "This PR bootstraps Spec/Plan for **issue #${{ github.event.issue.number }}** using Spec Kit."
-            echo
-            echo "- Spec dir: \"\n`${{ steps.detect_spec.outputs.spec_dir }}`\"\n"
-            echo "- Branch: \"\n`$BR`\"\n"
-            echo
-            echo "次のステップ: 追記や修正はコメントで。実装を進める場合は Issue や PR に **/execute** とコメントしてください。"
+            printf "%s\n" "This PR bootstraps Spec/Plan for issue #${{ github.event.issue.number }} using Spec Kit."
+            printf "\n- Spec dir:\n`%s`\n" "${{ steps.detect_spec.outputs.spec_dir }}"
+            printf "\n- Branch:\n`%s`\n" "${{ steps.detect_spec.outputs.branch_name }}"
+            printf "\n次のステップ: 追記や修正はコメントで。実装を進める場合は Issue や PR に /execute とコメントしてください。\n"
           } > "$BODY_FILE"
           if gh pr view "$BR" --json number -q .number >/dev/null 2>&1; then
             gh pr edit "$BR" --title "Spec: ${BR} for issue #${{ github.event.issue.number }}" --body-file "$BODY_FILE"
