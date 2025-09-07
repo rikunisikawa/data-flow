@@ -66,7 +66,7 @@ jobs:
             echo "No specs directory created."
             exit 1
           fi
-          BRANCH_NAME=$(grep -m1 -E '^Feature Branch:' "${SPEC_DIR}/spec.md" | sed -E 's/.*`([^`]+)`.*/\1/`)
+          BRANCH_NAME=$(grep -m1 -E '^Feature Branch:' "${SPEC_DIR}/spec.md" | awk -F'`' '{print $2}')
           if [ -z "${BRANCH_NAME}" ]; then
             echo "Could not parse Feature Branch from ${SPEC_DIR}/spec.md"
             exit 1
@@ -296,7 +296,7 @@ jobs:
 
           if [ -z "${PR_NUMBER:-}" ]; then
             echo "Could not find a PR for branch $BRANCH_NAME. Creating a new one."
-            gh pr create --title "$PR_TITLE" --body-file "$BODY_FILE"               --base main               --head "$BRANCH_NAME"               --label "auto-generated,plan-approved"
+            gh pr create --title "$PR_TITLE" --body-file "$BODY_FILE" --base main --head "$BRANCH_NAME" --label "auto-generated,plan-approved"
           else
             echo "Updating PR #$PR_NUMBER with title: $PR_TITLE"
             gh pr edit "$PR_NUMBER" --title "$PR_TITLE" --body-file "$BODY_FILE"
