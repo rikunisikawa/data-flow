@@ -68,6 +68,17 @@ jobs:
             echo "No changes from Gemini step."
           fi
 
+      - name: Debug specs tree
+        run: |
+          set -e
+          ls -la
+          if [ -d specs ]; then
+            echo "== specs =="
+            ls -la specs || true
+            echo "== newest spec.md =="
+            SPEC_DIR="$(ls -1d specs/* 2>/dev/null | sort | tail -n1 || true)"
+            [ -n "${SPEC_DIR}" ] && sed -n '1,80p' "${SPEC_DIR}/spec.md" || true
+          fi
       - name: Detect or create spec dir and branch (robust)
         id: detect_spec
         run: |
