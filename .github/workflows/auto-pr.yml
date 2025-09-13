@@ -8,6 +8,10 @@ on:
   pull_request_review_comment:
     types: [created]
 
+concurrency:
+  group: auto-pr-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
   issues: write
@@ -48,15 +52,15 @@ jobs:
         with:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
-            /background 縺ゅ↑縺溘�Spec Kit縺ｮ繧ｬ繧､繝峨Λ繧､繝ｳ縺ｫ蠕薙≧荳顔ｴ壹�繝ｭ繧ｸ繧ｧ繧ｯ繝医�繝阪�繧ｸ繝｣蜈ｼ繧ｽ繝輔ヨ繧ｦ繧ｧ繧｢繧ｨ繝ｳ繧ｸ繝九い縺ｧ縺吶�
-            /background 莉･荳九�Issue繧偵ｂ縺ｨ縺ｫ譁ｰ縺励＞縲梧ｩ溯�縲阪ｒ髢句ｧ九＠縺ｦ縺上□縺輔＞縲�/specify 縺ｫ繧医ｊ莉墓ｧ倥ｒ逕滓�縺励ヾpec Kit 縺ｮ繧ｹ繧ｯ繝ｪ繝励ヨ縺ｧ繝悶Λ繝ｳ繝√→ specs 繝�ぅ繝ｬ繧ｯ繝医Μ繧剃ｽ懈�縺励※縺上□縺輔＞縲�
-            /background 縺昴�蠕� /plan 繧貞ｮ溯｡後＠縲∝ｿ�ｦ√↑繧� /tasks 縺ｾ縺ｧ騾ｲ繧√※縺上□縺輔＞��tasks 縺ｯ蠕後〒縺ｧ繧ょ庄�峨�Gemini縺ｮ繝輔ぃ繧､繝ｫ/繧ｷ繧ｧ繝ｫ繝��繝ｫ繧剃ｽｿ縺｣縺ｦ蠢�ｦ√↑繝輔ぃ繧､繝ｫ繧剃ｿ晏ｭ倥＠縺ｦ縺上□縺輔＞縲�
-            /background 遖∵ｭ｢莠矩��: `.github/workflows` 驟堺ｸ九�邱ｨ髮�＠縺ｪ縺�Ｓun_shell_command 縺ｧ `$()`, `<()`, `()>` 縺ｮ繧医≧縺ｪ繧ｳ繝槭Φ繝臥ｽｮ謠帙�菴ｿ逕ｨ縺励↑縺��
+            /background あなたはSpec Kitを用いて仕様・計画を生成するAIです。出力は必ず日本語で行ってください（コードや識別子は英語可）。
+            /background 次のIssueを読み取り、Spec Kitの構成に従って`specs/`配下へ仕様(`spec.md`)と計画(`plan.md`)、必要に応じてタスク(`tasks.md`)を生成します。
+            /background 制約: `.github/workflows` ディレクトリは編集しないこと。`run_shell_command`使用時は`$()`, `<()`, `>()`のコマンド置換を使わないこと。
             /specify
             [Feature] issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
             [Context]
             ${{ github.event.issue.body }}
-            /plan 縺薙�讖溯�縺ｯ譌｢蟄倥Ξ繝昴ず繝医Μ縺ｫ谿ｵ髫守噪縺ｫ霑ｽ蜉�縺励∪縺吶ら樟陦後�繧ｹ繧ｿ繝�け/隕冗ｴ�→謨ｴ蜷医＠縲√ユ繧ｹ繝域婿驥昴→蠖ｱ髻ｿ遽�峇繧ょ性繧√※險育判縺励※縺上□縺輔＞縲�
+            /plan 高レベルの実装計画を日本語で簡潔に列挙し、依存関係が分かるように順序立ててください。
+            /tasks 実装タスクを日本語で具体的に列挙し、成果物のパスや検証方法（テスト/動作確認）を明記してください。
 
       - name: Persist generated spec/plan (commit if any)
         run: |
@@ -104,7 +108,7 @@ jobs:
 
           Context
 
-          (縺薙� spec 縺ｯ繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ縺ｨ縺励※閾ｪ蜍慕函謌舌＆繧後∪縺励◆縲�Gemini 螳溯｡後〒荳頑嶌縺阪＆繧後※繧よｧ九＞縺ｾ縺帙ｓ)
+          (自動生成された初期specです。Geminiにより後続の計画/タスク作成で更新されます。)
           EOF
             sed -i "s/REPLACE_ME/${DEFAULT_BRANCH}/" "${SPEC_DIR}/spec.md"
             touch "${SPEC_DIR}/plan.md"
@@ -156,7 +160,7 @@ jobs:
 `%s`
 " "${{ steps.detect_spec.outputs.branch_name }}"
             printf "
-谺｡縺ｮ繧ｹ繝�ャ繝�: 霑ｽ險倥ｄ菫ｮ豁｣縺ｯ繧ｳ繝｡繝ｳ繝医〒縲ょｮ溯｣�ｒ騾ｲ繧√ｋ蝣ｴ蜷医� Issue 繧� PR 縺ｫ /execute 縺ｨ繧ｳ繝｡繝ｳ繝医＠縺ｦ縺上□縺輔＞縲�
+次のアクション: 計画をご確認ください。実装フローを進める場合は、PR上で指示コメントを残してください（例: 補足要件や制約の追記）。
 "
           } > "$BODY_FILE"
 
