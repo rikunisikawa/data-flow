@@ -2,7 +2,7 @@ name: "Plan and Implement on Issue"
 on:
   workflow_dispatch:
   issues:
-    types: [opened]
+    types: [opened, reopened]
   issue_comment:
     types: [created]
   pull_request_review_comment:
@@ -39,7 +39,7 @@ jobs:
 
   plan:
     needs: setup_spec_kit
-    if: github.event_name == 'issues' && github.event.action == 'opened'
+    if: github.event_name == 'issues' && (github.event.action == 'opened' || github.event.action == 'reopened')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
