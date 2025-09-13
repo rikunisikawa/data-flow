@@ -148,17 +148,17 @@ jobs:
           set -euo pipefail
           BR="${{ steps.detect_spec.outputs.branch_name }}"
           BODY_FILE="$(mktemp)"
-          cat > "$BODY_FILE" <<EOF
-This PR bootstraps Spec/Plan for issue #${{ github.event.issue.number }} using Spec Kit.
-
-- Spec dir:
-`${{ steps.detect_spec.outputs.spec_dir }}`
-
-- Branch:
-`${{ steps.detect_spec.outputs.branch_name }}`
-
-次のアクション: 計画をご確認ください。実装フローを進める場合は、PR上で指示コメントを残してください（例: 補足要件や制約の追記）。
-EOF
+          {
+            echo "This PR bootstraps Spec/Plan for issue #${{ github.event.issue.number }} using Spec Kit."
+            echo
+            echo "- Spec dir:"
+            echo "\`${{ steps.detect_spec.outputs.spec_dir }}\`"
+            echo
+            echo "- Branch:"
+            echo "\`${{ steps.detect_spec.outputs.branch_name }}\`"
+            echo
+            echo "次のアクション: 計画をご確認ください。実装フローを進める場合は、PR上で指示コメントを残してください（例: 補足要件や制約の追記）。"
+          } > "$BODY_FILE"
 
           if gh pr view --head "$BR" --json number -q .number >/dev/null 2>&1; then
             gh pr edit --head "$BR" --title "Spec: ${BR} for issue #${{ github.event.issue.number }}" --body-file "$BODY_FILE"
