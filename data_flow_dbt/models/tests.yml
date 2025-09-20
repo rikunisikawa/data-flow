@@ -9,3 +9,47 @@ models:
       - name: activity_label
         tests:
           - not_null
+  - name: featured_activities
+    columns:
+      - name: user_id
+        tests:
+          - not_null
+      - name: activity_label
+        tests:
+          - not_null
+      - name: chest_acc_mean
+        tests:
+          - not_null
+      - name: chest_acc_std
+        tests:
+          - not_null
+      - name: chest_acc_min
+        tests:
+          - not_null
+      - name: chest_acc_max
+        tests:
+          - not_null
+      - name: left_ankle_acc_mean
+        tests:
+          - not_null
+      - name: left_ankle_acc_std
+        tests:
+          - not_null
+      - name: left_ankle_acc_min
+        tests:
+          - not_null
+      - name: left_ankle_acc_max
+        tests:
+          - not_null
+      - name: right_lower_arm_acc_mean
+        tests:
+          - not_null
+      - name: right_lower_arm_acc_std
+        tests:
+          - not_null
+      - name: right_lower_arm_acc_min
+        tests:
+          - not_null
+      - name: right_lower_arm_acc_max
+        tests:
+          - not_null

@@ -33,6 +33,43 @@ s3://aws-data-platform-20250607/
 
 ---
 
+## 🏷️ 環境分離（dev/prod）
+
+- 分離戦略: Terraformのworkspace（`dev`/`prod`）でS3バケット名・Glue Database名を分離し、同一コードで環境を切替。
+- S3バケット名: `"${terraform.workspace}-${var.base_bucket_name}"`
+  - 例: `dev-aws-data-platform-20250607`, `prod-aws-data-platform-20250607`
+- Glue Data Catalog（ステージ領域）
+  - Database名: `"${terraform.workspace}_stage_mhealth"`（例: `dev_stage_mhealth` / `prod_stage_mhealth`）
+  - Table: `raw_activities`（Locationは各環境の `s3://<bucket>/stage/`）
+- dbt（加工出力）
+  - Catalog: `awsdatacatalog`
+  - Schema（Glue Database相当）: 環境変数で指定（推奨）
+    - dev: `DBT_SCHEMA=dev_processed`
+    - prod: `DBT_SCHEMA=prod_processed`
+  - 出力先S3: `S3_DATA_DIR=s3://<bucket>/processed/`（環境ごとにバケットが異なる）
+
+補足:
+- 現状の `.env.dev` は `DBT_SCHEMA=processed` を既定としているが、運用上の衝突回避のため `dev_processed` / `prod_processed` の採用を推奨。
+- CIではPRごとに `DBT_SCHEMA=processed_ci_<run_id>` のように一意化すると衝突を避けやすい。
+
+---
+
+## 📚 データ階層（raw / stage / processed）
+
+- raw: 取得直後の生ログ（`.log`）。Lambda `download_and_upload` が `s3://<bucket>/raw/` に配置。
+- stage: Parquet化＋パーティション（`subject_id` × `activity_label`）。Lambda `convert_log_to_parquet` が `s3://<bucket>/stage/` に配置。
+  - Glue Catalog: `<workspace>_stage_mhealth.raw_activities`
+  - Athenaの参照元としてdbtの`source`が利用。
+- processed: dbtによる変換・集約の成果物をParquetで格納（テーブルごとにサブディレクトリ）。
+  - Glue Catalog: `DBT_SCHEMA`（例: `dev_processed` / `prod_processed`）配下に `cleaned_activities`, `featured_activities` などを作成。
+  - 出力先: `s3://<bucket>/processed/<table>/`
+
+クエリ最適化:
+- Athenaでは `stage` のパーティションキーを積極活用（`subject_id`, `activity_label` でフィルタ）。
+- `processed` は列指向かつ集約済みのため、分析クエリコストを削減。
+
+---
+
 ## 🔄 データ処理フロー（ETL）
 
 | ステップ | 処理内容 | 実装先 |

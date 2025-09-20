@@ -3,6 +3,6 @@ version: 2
 sources:
   - name: mhealth_stage
     database: awsdatacatalog
-    schema: stage_mhealth
+    schema: "{{ env_var('GLUE_STAGE_DATABASE', 'stage_mhealth') }}"
     tables:
       - name: raw_activities

@@ -13,6 +13,9 @@ venv/
 
 # 環境変数や資格情報系（重要）
 kaggle_credentials.json
+.env
+.dbt/
+dbt_profiles/logs/
 
 # VSCodeなどのエディタ系
 .vscode/
