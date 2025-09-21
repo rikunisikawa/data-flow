@@ -92,3 +92,8 @@
 - Lambda 設定: タイムアウト/メモリ/リトライ/同時実行の見直し
 - IAM 権限: 最小権限・リージョン/リソーススコープ確認
 - コスト影響: 実行回数/データ量/スキャン量の見積もり
+
+## トラブルシュート（Mermaid/Notebook）
+- Mermaid 図の構文エラー対応と、.ipynb JSON 破損時の復旧手順は下記に集約：
+  - `ai-doc/tips/troubleshooting-notebook-mermaid.md`
+  - 図の全体像は `ai-doc/infra/etl_flow.md` を参照（Mermaid）。

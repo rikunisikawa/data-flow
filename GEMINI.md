@@ -43,6 +43,11 @@
   - ただし、技術用語、コード内のコメント、エラーメッセージなど、英語での表現が適切または一般的な場合はその限りではありません。
   - **Geminiの出力はすべて日本語で行うこと。**
 
+## 🧯 トラブルシュート参照（Mermaid / Notebook）
+- Mermaid 図のパースエラーや、Jupyter Notebook（.ipynb）の JSON 破損時の対処は下記を参照：
+  - `ai-doc/tips/troubleshooting-notebook-mermaid.md`
+  - ETL 全体図（Mermaid）は `ai-doc/infra/etl_flow.md`
+
 ## 🚀 Pull Requestとコミット
 
 - **Pull Request**:
@@ -56,4 +61,3 @@
 ## ⚠️ 禁止事項
 
 - `.github/workflows` ディレクトリ内のファイルは、ワークフローのコア機能に影響を与えるため、**絶対に編集しないでください**。
-
