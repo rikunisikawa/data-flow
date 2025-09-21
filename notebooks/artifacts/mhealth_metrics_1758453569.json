@@ -1,0 +1,35 @@
+{
+  "timestamp": "2025-09-21T11:19:29.335207Z",
+  "dbt_schema": "dev_processed",
+  "rows": 120,
+  "features": [
+    "chest_acc_mean",
+    "chest_acc_std",
+    "chest_acc_min",
+    "chest_acc_max",
+    "left_ankle_acc_mean",
+    "left_ankle_acc_std",
+    "left_ankle_acc_min",
+    "left_ankle_acc_max",
+    "right_lower_arm_acc_mean",
+    "right_lower_arm_acc_std",
+    "right_lower_arm_acc_min",
+    "right_lower_arm_acc_max"
+  ],
+  "accuracy": 0.75,
+  "macro_f1": 0.7111111111111111,
+  "train_users": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "9"
+  ],
+  "test_users": [
+    "10",
+    "8"
+  ]
+}
