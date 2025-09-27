@@ -1,0 +1,86 @@
+version: 2
+
+models:
+  - name: cleaned_activities
+    description: |
+      mHealth の stage データをクレンジングした中間テーブル。
+      - Glue の partition（subject_id）または `$path` から user_id を抽出
+      - 3軸加速度の単純平均を算出（chest / left_ankle / right_lower_arm）
+      - activity_label = 0（null クラス）を除外
+    columns:
+      - name: user_id
+        description: ユーザー ID（`subject_id` を文字列化）。
+        tests:
+          - not_null
+      - name: activity_label
+        description: 活動ラベル（0 は除外対象、1 以降が有効クラス）。
+        tests:
+          - not_null
+      - name: chest_acc_avg
+        description: 胸部加速度（X/Y/Z）の単純平均。
+      - name: left_ankle_acc_avg
+        description: 左足首加速度（X/Y/Z）の単純平均。
+      - name: right_lower_arm_acc_avg
+        description: 右前腕加速度（X/Y/Z）の単純平均。
+
+  - name: featured_activities
+    description: |
+      cleaned_activities を `user_id × activity_label` で集約し、3軸平均の代表統計量を算出した特徴量テーブル。
+      - chest / left_ankle / right_lower_arm それぞれについて mean / std / min / max を計算。
+    columns:
+      - name: user_id
+        description: ユーザー ID。
+        tests:
+          - not_null
+      - name: activity_label
+        description: 活動ラベル（1 以降の有効クラス）。
+        tests:
+          - not_null
+      - name: chest_acc_mean
+        description: 胸部加速度平均（3軸平均の平均値）。
+        tests:
+          - not_null
+      - name: chest_acc_std
+        description: 胸部加速度標準偏差（3軸平均の標準偏差）。
+        tests:
+          - not_null
+      - name: chest_acc_min
+        description: 胸部加速度最小（3軸平均の最小値）。
+        tests:
+          - not_null
+      - name: chest_acc_max
+        description: 胸部加速度最大（3軸平均の最大値）。
+        tests:
+          - not_null
+      - name: left_ankle_acc_mean
+        description: 左足首加速度平均（3軸平均の平均値）。
+        tests:
+          - not_null
+      - name: left_ankle_acc_std
+        description: 左足首加速度標準偏差（3軸平均の標準偏差）。
+        tests:
+          - not_null
+      - name: left_ankle_acc_min
+        description: 左足首加速度最小（3軸平均の最小値）。
+        tests:
+          - not_null
+      - name: left_ankle_acc_max
+        description: 左足首加速度最大（3軸平均の最大値）。
+        tests:
+          - not_null
+      - name: right_lower_arm_acc_mean
+        description: 右前腕加速度平均（3軸平均の平均値）。
+        tests:
+          - not_null
+      - name: right_lower_arm_acc_std
+        description: 右前腕加速度標準偏差（3軸平均の標準偏差）。
+        tests:
+          - not_null
+      - name: right_lower_arm_acc_min
+        description: 右前腕加速度最小（3軸平均の最小値）。
+        tests:
+          - not_null
+      - name: right_lower_arm_acc_max
+        description: 右前腕加速度最大（3軸平均の最大値）。
+        tests:
+          - not_null

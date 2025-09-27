@@ -1,0 +1,29 @@
+services:
+  dbt:
+    build:
+      context: ../..
+      dockerfile: docker/dbt/Dockerfile
+    image: local/dbt:dev
+    container_name: dbt_cli
+    working_dir: /work/data_flow_dbt
+    environment:
+      - DBT_PROFILES_DIR=/work/.dbt
+      # Helpful defaults; can be overridden by env_file
+      - AWS_DEFAULT_REGION=${AWS_REGION:-ap-northeast-1}
+      - AWS_REGION=${AWS_REGION:-ap-northeast-1}
+      - ATHENA_WORK_GROUP=${ATHENA_WORK_GROUP:-primary}
+    env_file:
+      # Use repo's default dev env. Override by editing this file or passing env vars.
+      - ../../.env.dev
+    volumes:
+      # Mount repository root to work inside project
+      - ../../:/work
+      # Mount host AWS credentials (read-only)
+      - ${HOME}/.aws:/home/app/.aws:ro
+    ports:
+      # For `dbt docs serve`
+      - "8080:8080"
+    # Keep container running for interactive use
+    tty: true
+    stdin_open: true
+    command: ["sleep", "infinity"]

@@ -2,7 +2,58 @@ version: 2
 
 sources:
   - name: mhealth_stage
+    description: Kaggle mHealth ログを Parquet 化したステージングデータ（Glue Catalog 経由）。
     database: awsdatacatalog
-    schema: stage_mhealth
+    schema: "{{ env_var('GLUE_STAGE_DATABASE', 'stage_mhealth') }}"
     tables:
       - name: raw_activities
+        description: 24 列の生データ（activity_label を含む）。`subject_id`/`activity_label` でパーティション。
+        columns:
+          - name: chest_acc_x
+            description: 胸部加速度 X
+          - name: chest_acc_y
+            description: 胸部加速度 Y
+          - name: chest_acc_z
+            description: 胸部加速度 Z
+          - name: chest_ecg_1
+            description: 胸部 ECG チャンネル 1
+          - name: chest_ecg_2
+            description: 胸部 ECG チャンネル 2
+          - name: left_ankle_acc_x
+            description: 左足首加速度 X
+          - name: left_ankle_acc_y
+            description: 左足首加速度 Y
+          - name: left_ankle_acc_z
+            description: 左足首加速度 Z
+          - name: left_ankle_gyro_x
+            description: 左足首ジャイロ X
+          - name: left_ankle_gyro_y
+            description: 左足首ジャイロ Y
+          - name: left_ankle_gyro_z
+            description: 左足首ジャイロ Z
+          - name: left_ankle_mag_x
+            description: 左足首磁気 X
+          - name: left_ankle_mag_y
+            description: 左足首磁気 Y
+          - name: left_ankle_mag_z
+            description: 左足首磁気 Z
+          - name: right_lower_arm_acc_x
+            description: 右前腕加速度 X
+          - name: right_lower_arm_acc_y
+            description: 右前腕加速度 Y
+          - name: right_lower_arm_acc_z
+            description: 右前腕加速度 Z
+          - name: right_lower_arm_gyro_x
+            description: 右前腕ジャイロ X
+          - name: right_lower_arm_gyro_y
+            description: 右前腕ジャイロ Y
+          - name: right_lower_arm_gyro_z
+            description: 右前腕ジャイロ Z
+          - name: right_lower_arm_mag_x
+            description: 右前腕磁気 X
+          - name: right_lower_arm_mag_y
+            description: 右前腕磁気 Y
+          - name: right_lower_arm_mag_z
+            description: 右前腕磁気 Z
+          - name: activity_label
+            description: 活動ラベル（0=その他/無効、1 以降=有効）

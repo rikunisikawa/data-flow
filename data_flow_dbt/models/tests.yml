@@ -1,11 +1,2 @@
 version: 2
-
-models:
-  - name: cleaned_activities
-    columns:
-      - name: user_id
-        tests:
-          - not_null
-      - name: activity_label
-        tests:
-          - not_null
+# Tests are consolidated into models/schema.yml to avoid property override issues.

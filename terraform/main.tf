@@ -250,7 +250,12 @@ module "glue_catalog_raw_activities" {
     { name = "right_lower_arm_gyro_z", type = "double" },
     { name = "right_lower_arm_mag_x", type = "double" },
     { name = "right_lower_arm_mag_y", type = "double" },
-    { name = "right_lower_arm_mag_z", type = "double" },
-    { name = "activity_label", type = "bigint" }
+    { name = "right_lower_arm_mag_z", type = "double" }
   ]
+}
+
+# Processed Glue Database for dbt outputs (dev/prod separated by workspace)
+module "glue_database_processed" {
+  source = "./modules/glue_database"
+  name   = "${terraform.workspace}_processed"
 }

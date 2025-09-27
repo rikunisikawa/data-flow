@@ -65,15 +65,15 @@ def lambda_handler(event, context):
         s3 = get_s3_client()
         
         uploaded_files = []
-        target_file = "mHealth_subject1.log"
+        # 全件アップロード: 抽出先から mHealth_subject*.log を列挙して S3 に配置
         for root, dirs, files in os.walk(extract_path):
-            if target_file in files:
-                file_path = os.path.join(root, target_file)
-                s3_key = f'raw/{target_file}'
-                logger.info(f"Uploading {file_path} to s3://{bucket_name}/{s3_key}")
-                s3.upload_file(file_path, bucket_name, s3_key)
-                uploaded_files.append(s3_key)
-                break  # 1つのファイルのみ処理したら終了（コストの問題により）
+            for fname in files:
+                if fname.startswith("mHealth_subject") and fname.endswith(".log"):
+                    file_path = os.path.join(root, fname)
+                    s3_key = f'raw/{fname}'
+                    logger.info(f"Uploading {file_path} to s3://{bucket_name}/{s3_key}")
+                    s3.upload_file(file_path, bucket_name, s3_key)
+                    uploaded_files.append(s3_key)
 
         logger.info(f"Successfully uploaded {len(uploaded_files)} log files to S3")
         return {
