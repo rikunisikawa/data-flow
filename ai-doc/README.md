@@ -32,6 +32,7 @@
 ## 運用/デプロイ
 - `ai-doc/operations/deployment_strategy.md`: Terraform + Layer ビルド/アップロード、docker-compose での Terraform 実行フロー。
 - `ai-doc/operations/workflow-usage.md`: ワークフロー利用ガイド（Issue 起票〜自動生成の運用方針）。
+- `ai-doc/operations/parallel-worktrees-for-specs-107-108.md`: git worktree を用いた `specs/107` と `specs/108` の並列開発手順。
 - `ai-doc/infra/terraform-design.md`: Terraform 設計やワークスペース分離（dev/prod）方針。
 
 ## Notebook/分析
@@ -59,4 +60,3 @@
 ## 補足
 - dbt Docs のメタデータ（Models/Sources の Description/Tests）は `data_flow_dbt/models/schema.yml` と `data_flow_dbt/models/src_mhealth.yml` に登録済み。反映には `dbt docs generate` の再実行が必要です。
 - 追加の図版/設計資料が増えた場合は、本 README に追記して参照性を維持してください。
-
