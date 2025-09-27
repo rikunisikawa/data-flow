@@ -169,57 +169,6 @@ resource "aws_iam_role_policy" "sfn_execution_policy" {
   })
 }
 
-# Role for GitHub Actions to assume for Terraform deployment
-resource "aws_iam_role" "github_actions_terraform_deploy_role" {
-  name = "GitHubActionsTerraformDeployRole"
-
-  assume_role_policy = jsonencode({
-    Version   = "2012-10-17"
-    Statement = [
-      {
-        Effect    = "Allow"
-        Principal = {
-          Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
-        }
-        Action    = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:rikunisikawa/data-flow:*"
-          }
-        }
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
-  name = "GitHubActionsTerraformDeployPolicy"
-  role = aws_iam_role.github_actions_terraform_deploy_role.id
-
-  # WARNING: This policy is highly permissive.
-  # For production environments, it is strongly recommended to scope down these permissions
-  # to the minimum required for your Terraform resources.
-  policy = jsonencode({
-    Version   = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = [
-          "s3:*",
-          "lambda:*",
-          "iam:*",
-          "states:*",
-          "glue:*"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
-
 module "glue_catalog_raw_activities" {
   source = "./modules/glue_catalog"
 
@@ -258,4 +207,13 @@ module "glue_catalog_raw_activities" {
 module "glue_database_processed" {
   source = "./modules/glue_database"
   name   = "${terraform.workspace}_processed"
+}
+
+module "github_actions_oidc_role" {
+  source = "./modules/github_actions_oidc_role"
+
+  github_repository = var.github_repository
+  role_name_prefix  = "${terraform.workspace}-data-flow"
+  # For production, this should be a more restrictive, dedicated policy ARN
+  policy_arns       = ["arn:aws:iam::aws:policy/AdministratorAccess"]
 }
