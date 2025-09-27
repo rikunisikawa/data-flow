@@ -341,3 +341,64 @@ pip install -r convert_log_to_parquet/requirements.txt --target convert_log_to_p
 
 > このデータセットを利用する場合は上記論文を引用してください。  
 > 利用報告は oresti.bl '@' gmail.com まで。
+
+---
+
+## 🤖 モデル成果物管理
+
+機械学習モデルの再現性と追跡可能性を確保するため、モデル成果物（学習済みモデル、メトリクス、パラメータ等）はS3上で一元的にバージョン管理されます。
+
+### S3パス命名規則
+
+モデル成果物は、以下の命名規則に従ってS3バケットに保存されます。
+
+```
+s3://<bucket-name>/models/<YYYYMMDD-HHMMSS>/<model-name>-<version>/
+├── model.pkl
+├── params.json
+└── metrics.json
+```
+
+- **`<bucket-name>`**: 環境に応じたS3バケット名 (`dev-aws-data-platform-20250607` など)。
+- **`models/`**: モデル成果物を格納する固定プレフィックス。
+- **`<YYYYMMDD-HHMMSS>`**: 学習実行日時（UTC）。これにより、いつ実行された学習の成果物かを一意に識別できます。
+- **`<model-name>-<version>`**: モデル名とセマンティックバージョン（例: `mhealth-classifier-v1.2.0`）。
+- **`model.pkl`**: 学習済みのモデルオブジェクト（シリアライズ形式はモデルに依存）。
+- **`params.json`**: 学習時に使用したハイパーパラメータ。
+- **`metrics.json`**: モデルの評価指標（精度、再現率など）。
+
+### バージョニング
+
+- モデルのバージョンは、コードやdbtモデルとは独立して、セマンティックバージョニング (`MAJOR.MINOR.PATCH`) で管理します。
+- 新しいモデルバージョンをリリースする際は、Gitのタグ (`models/mhealth-classifier/v1.2.0` のようにプレフィックスを付けることを推奨) を作成し、それをトリガーに本番環境へのデプロイパイプラインが実行されるフローを想定します。
+
+### メトリクスJSONスキーマ (`metrics.json`)
+
+モデルの評価指標を記録する `metrics.json` は、以下のスキーマに従います。
+
+```json
+{
+  "model_name": "mhealth-classifier",
+  "model_version": "1.2.0",
+  "execution_timestamp": "2025-09-27T10:00:00Z",
+  "evaluation_dataset": "s3://<bucket-name>/processed/featured_activities/run_id=xyz/",
+  "metrics": {
+    "accuracy": 0.95,
+    "precision": 0.96,
+    "recall": 0.95,
+    "f1_score": 0.95,
+    "confusion_matrix": [
+      [100, 2],
+      [5, 110]
+    ]
+  },
+  "git_commit_hash": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
+}
+```
+
+- **`model_name`**: モデルの一意な名前。
+- **`model_version`**: モデルのセマンティックバージョン。
+- **`execution_timestamp`**: 評価が実行された日時 (ISO 8601形式)。
+- **`evaluation_dataset`**: 評価に使用したデータセットのS3パス。
+- **`metrics`**: 評価指標のキーと値のペア。
+- **`git_commit_hash`**: このモデルを生成したコードのGitコミットハッシュ。コードの再現性を担保します。
