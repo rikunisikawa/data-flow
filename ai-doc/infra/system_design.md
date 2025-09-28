@@ -14,11 +14,14 @@
 - **AWSサービス**：
   - Lambda（Python）
   - Step Functions（ETLフロー制御）
+  - ECS Fargate（dbt 実行コンテナ）
+  - ECR（dbt イメージ保管）
   - Glue（整形＆カタログ更新）
   - EventBridge（定時実行）
   - S3（データ保存）
   - Athena（分析）
   - Glue Data Catalog（メタデータ管理）
+  - CloudWatch Logs（Lambda/ECS ログ集約）
 
 ---
 
@@ -76,9 +79,26 @@ s3://aws-data-platform-20250607/
 |---|---|---|
 | ① | Kaggle APIからlogファイル取得→S3 `/raw/` に保存 | Lambda |
 | ② | log → Parquet形式に変換し、S3 `/stage/` に保存 | Lambda |
-| ③ | **dbtによるデータ変換**: S3 `/stage/` のデータをソースとし、`cleaned_activities` モデルを実行。`user_id`の抽出、各センサー加速度の平均値算出、不要データ（`activity_label=0`）の除外を行う。 | dbt (`dbt run`) |
-| ④ | **dbtによるデータ格納**: 変換後のデータをS3 `/processed/` にParquet形式でテーブルとして保存する。 | dbt (`dbt run`) |
-| ⑤ | **dbtによるデータ品質テスト**: `tests.yml` に基づき、データの整合性や品質をテストする。 | dbt (`dbt test`) |
+| ③ | **dbtによるデータ変換**: S3 `/stage/` のデータをソースとし、`cleaned_activities` モデルを実行。`user_id`の抽出、各センサー加速度の平均値算出、不要データ（`activity_label=0`）の除外を行う。 | ECS Fargate（dbt コンテナで `dbt run`） |
+| ④ | **dbtによるデータ格納**: 変換後のデータをS3 `/processed/` にParquet形式でテーブルとして保存する。 | ECS Fargate（dbt コンテナで `dbt run`） |
+| ⑤ | **dbtによるデータ品質テスト**: `tests.yml` に基づき、データの整合性や品質をテストする。 | ECS Fargate（dbt コンテナで `dbt test`） |
+
+---
+
+## 🚀 dbt on Fargate（Terraform管理）
+
+- **ECR リポジトリ**: `dev-data-platform/dbt` / `prod-data-platform/dbt`。タグは `dev-*` / `prod-*` を利用し、Terraform 変数 `dbt_image_tag` で参照。
+- **ECS クラスター/タスク**: `aws_ecs_cluster.dbt` と `aws_ecs_task_definition.dbt`。Fargate 0.5vCPU/2GB（デフォルト）で、コンテナは `/work/data_flow_dbt` にプロジェクト一式を内包。
+- **IAM**: 実行ロールは ECR pull + CloudWatch Logs。タスクロールは `s3://<bucket>`（raw/stage/processed）、Glue `<workspace>_stage_mhealth` / `<workspace>_processed`、Athena WorkGroup（`var.athena_workgroup`）への最小権限のみ許可。
+- **ネットワーク**: `aws_vpc.dbt`（/16 CIDR）配下のパブリックサブネットでタスクを実行。Fargate タスクには Public IP を付与し、インターネット経由で ECR/Athena/S3 に到達。セキュリティグループは全方向アウトバウンドのみ許可。
+- **CloudWatch Logs**: `/ecs/<workspace>/dbt` に `dbt run` / `dbt test` の標準出力を集約。失敗時も単行JSONライクログを維持。
+- **Step Functions 連携**: `ConvertToParquet` の次に `RunDbtTask`（`arn:aws:states:::ecs:runTask.sync`）を直列追加。`iam:PassRole` は `ecs-tasks.amazonaws.com` のみに限定。
+
+Terraform 側の入力値:
+- `dbt_image_tag`: デプロイするコンテナイメージのタグ。`terraform/<env>.tfvars` で `dev-latest` / `prod-latest` などを指定。
+- `athena_workgroup`: 既存 WorkGroup（既定 `primary`）。必要に応じて tfvars で差し替え。
+
+Step Functions 実行時は、Download → Convert → (ECS Fargate) dbt の順に同期実行となり、`dbt run -m cleaned_activities && dbt test` が成功した場合のみ `SuccessState` に遷移する。
 
 ---
 
