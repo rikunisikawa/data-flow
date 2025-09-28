@@ -13,8 +13,8 @@
 ### 1. `build.sh` (プロジェクトルート)
 
 *   **役割**: ローカルでのビルドプロセス全体をオーケストレーションします。
-*   **機能**: Lambda関数のzip化、レイヤーのビルドスクリプトの呼び出し、S3への成果物アップロードを行います。
-*   **実行方法**: `./build.sh <S3_BUCKET_NAME>`
+*   **機能**: Lambda関数のzip化、環境別レイヤービルドスクリプトの呼び出し、S3への成果物アップロードを行います。
+*   **実行方法**: `./build.sh <env>` (`env` は `dev` または `prod`)
 
 ### 2. `layer/terraform/build-layer.sh`
 
@@ -26,7 +26,14 @@
 
 *   **役割**: Lambdaレイヤーのソースコード（`Dockerfile`, `requirements.txt`）を格納します。
 
-### 4. `terraform/main.tf`
+### 4. `scripts/build_dbt_image.sh`
+
+*   **役割**: dbt コンテナイメージをビルドし、環境別の ECR リポジトリ（`<env>-data-platform/dbt`）へ push する。
+*   **機能**: AWS アカウント ID の取得、ECR ログイン、`docker build` / `docker push` を一括実行。
+*   **実行方法**: `scripts/build_dbt_image.sh <env> <tag>`（例: `scripts/build_dbt_image.sh dev dev-latest`）。
+*   **注意**: Terraform の `dbt_image_tag` と渡した `tag` を一致させる。
+
+### 5. `terraform/main.tf`
 
 *   **役割**: AWSリソース（Lambda関数、Lambdaレイヤーなど）の定義と管理を行います。
 *   **レイヤーの参照**: `aws_lambda_layer_version`リソースは、`build/layer.zip`をS3から参照する形式（`s3_bucket`, `s3_key`）を採用しています。
@@ -41,13 +48,23 @@
 
 1.  **コード変更**: Lambda関数コード（例: `convert_log_to_parquet.py`）やレイヤーの依存関係（`layer/src/requirements.txt`）を変更します。
 
-2.  **ビルドとS3アップロード**: ローカル環境で`build.sh`を実行し、デプロイパッケージとレイヤーのzipファイルを生成し、S3にアップロードします。
+2.  **ビルドとS3アップロード**: ローカル環境で`build.sh`を実行し、デプロイパッケージとレイヤーのzipファイルを生成し、環境に応じたバケットへアップロードします。
     ```bash
-    ./build.sh <あなたのS3バケット名>
+    ./build.sh dev    # 開発環境: dev-aws-data-platform-20250607 へ配置
+    ./build.sh prod   # 本番環境: prod-aws-data-platform-20250607 へ配置
     ```
-    *例: `./build.sh dev-aws-data-platform-20250607`*
+    > `build.sh` は指定した環境を `layer/terraform/build-layer.sh` に引き渡し、`<env>-aws-data-platform-20250607/layers/layer.zip` に成果物をアップロードします。
 
-3.  **Terraform適用**: Terraformコンテナ内で`terraform apply`を実行し、AWSリソースに変更を適用します。
+3.  **dbt コンテナイメージのビルドと ECR プッシュ**: `scripts/build_dbt_image.sh` を使い、Fargate で使用する dbt イメージを環境別にビルドして ECR に push します。
+    ```bash
+    bash scripts/build_dbt_image.sh dev dev-latest
+    bash scripts/build_dbt_image.sh prod prod-2025-09-28
+    ```
+    - `env` 引数は `dev` / `prod` のいずれか。
+    - `tag` は Terraform の `dbt_image_tag` と一致させる。
+    - 処理内容: `aws sts` でアカウント ID を取得 → `aws ecr get-login-password` でログイン → `docker build` → `docker push`。
+
+4.  **Terraform適用**: Terraformコンテナ内で`terraform apply`を実行し、AWSリソースに変更を適用します。
     ```bash
     docker compose -f terraform/docker-compose.yml run --rm terraform terraform apply -var-file=dev.tfvars
     ```
