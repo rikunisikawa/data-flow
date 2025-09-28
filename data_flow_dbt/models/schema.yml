@@ -84,3 +84,53 @@ models:
         description: 右前腕加速度最大（3軸平均の最大値）。
         tests:
           - not_null
+
+  - name: int_mhealth_windowed
+    description: |
+      mHealth の生データをユーザー ID × 活動ラベル単位で 2.56 秒のスライディングウィンドウに区切った中間テーブル。
+      - `dbt_project.yml` の `mhealth_window_size_seconds`・`mhealth_window_overlap_percentage`・`mhealth_sampling_frequency_hz` に従ってウィンドウ幅とステップを計算。
+      - 各レコードは該当するウィンドウ ID (`window_id`) に複製され、時間領域特徴量の計算に利用される。
+    columns:
+      - name: user_id
+        description: Glue の `subject_id` を文字列化したユーザー ID。
+        tests:
+          - not_null
+      - name: activity_label
+        description: 活動ラベル（0 を除外した有効クラス）。
+        tests:
+          - not_null
+      - name: window_id
+        description: ユーザー ID・活動ラベル・ウィンドウ番号を組み合わせた識別子。
+        tests:
+          - not_null
+      - name: window_number
+        description: ユーザー ID × 活動ラベル内でのウィンドウ番号（1 始まり）。
+      - name: window_start
+        description: ウィンドウに含まれるサンプルの開始インデックス。
+      - name: window_end
+        description: ウィンドウに含まれるサンプルの終了インデックス。
+      - name: sample_index
+        description: ユーザー ID × 活動ラベル内でのサンプル順序（0 始まり）。
+
+  - name: fct_mhealth_time_domain_features
+    description: |
+      スライディングウィンドウごとに加速度・ジャイロ・磁気・ECG の各軸の時間領域特徴量（平均・標準偏差・最小・最大・中央値・平均絶対値・エネルギー・レンジ）を算出した特徴量テーブル。
+      - `window_id` ごとにサンプル数 (`sample_count`) やウィンドウ境界も併記する。
+    columns:
+      - name: window_id
+        description: ウィンドウを一意に識別する ID。
+        tests:
+          - not_null
+          - unique
+      - name: user_id
+        description: ウィンドウの元となったユーザー ID。
+        tests:
+          - not_null
+      - name: activity_label
+        description: ウィンドウの活動ラベル。
+        tests:
+          - not_null
+      - name: sample_count
+        description: ウィンドウに含まれるサンプル数（重複を含むレコード数）。
+        tests:
+          - not_null
