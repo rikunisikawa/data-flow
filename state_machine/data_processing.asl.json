@@ -27,6 +27,33 @@
         "Payload.$": "$"
       },
       "ResultPath": "$.convertResult",
+      "Next": "RunDbtTask",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "FailState",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "RunDbtTask": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::ecs:runTask.sync",
+      "Parameters": {
+        "Cluster": "${DbtClusterArn}",
+        "TaskDefinition": "${DbtTaskDefinitionArn}",
+        "LaunchType": "FARGATE",
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "Subnets": ${DbtSubnets},
+            "SecurityGroups": [
+              "${DbtSecurityGroupId}"
+            ],
+            "AssignPublicIp": "ENABLED"
+          }
+        }
+      },
+      "ResultPath": "$.dbtResult",
       "Next": "SuccessState",
       "Catch": [
         {
