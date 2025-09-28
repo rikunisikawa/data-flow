@@ -22,6 +22,14 @@ clean-targets:         # directories to be removed by `dbt clean`
   - "target"
   - "dbt_packages"
 
+vars:
+  # Sliding window configuration for mHealth time-domain feature engineering
+  mhealth_window_size_seconds: 2.56
+  mhealth_window_overlap_percentage: 0.5
+  # The mHealth dataset is sampled at 50 Hz in the original publication.
+  # This value is used to convert the window size (seconds) into row counts.
+  mhealth_sampling_frequency_hz: 50
+
 
 # Configuring models
 # Full documentation: https://docs.getdbt.com/docs/configuring-models
