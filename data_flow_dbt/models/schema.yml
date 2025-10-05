@@ -27,15 +27,26 @@ models:
     description: |
       cleaned_activities を `user_id × activity_label` で集約し、3軸平均の代表統計量を算出した特徴量テーブル。
       - chest / left_ankle / right_lower_arm それぞれについて mean / std / min / max を計算。
+    tests:
+      - unique_combination_of_columns:
+          combination:
+            - user_id
+            - activity_label
     columns:
       - name: user_id
         description: ユーザー ID。
         tests:
           - not_null
+          - relationships:
+              to: ref('cleaned_activities')
+              field: user_id
       - name: activity_label
         description: 活動ラベル（1 以降の有効クラス）。
         tests:
           - not_null
+          - relationships:
+              to: ref('cleaned_activities')
+              field: activity_label
       - name: chest_acc_mean
         description: 胸部加速度平均（3軸平均の平均値）。
         tests:
