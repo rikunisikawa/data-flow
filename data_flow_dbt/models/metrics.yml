@@ -1,0 +1,26 @@
+version: 2
+
+metrics:
+  - name: avg_chest_acceleration
+    label: 平均胸部加速度
+    model: ref('fact_activity_metrics')
+    description: mHealth chest 加速度の平均値をユーザー・活動ラベルで集計するメトリクス。
+    calculation_method: expression
+    expression: avg(chest_acc_mean)
+    timestamp: loaded_at
+    time_grains: [day, week]
+    filters:
+      - field: activity_description
+        operator: is not null
+    dimensions:
+      - user_id
+      - activity_label
+
+  - name: active_user_count
+    label: アクティブユーザー数
+    model: ref('fact_activity_metrics')
+    description: 活動データを保有するユニークユーザー数。
+    calculation_method: count_distinct
+    expression: user_id
+    timestamp: loaded_at
+    time_grains: [day, week]

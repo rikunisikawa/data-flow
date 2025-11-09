@@ -1,0 +1,17 @@
+selectors:
+  - name: state_modified_plus_seeds
+    description: Slim CI 用のセレクタ。変更対象と依存モデル＋シードを含める。
+    definition:
+      union:
+        - method: state.modified
+          state: modified
+        - method: state.modified
+          state: modified
+          parents: true
+        - method: fqn
+          value: activity_labels
+
+  - name: mart_only
+    definition:
+      method: tag
+      value: mart
