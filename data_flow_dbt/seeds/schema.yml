@@ -1,0 +1,20 @@
+version: 2
+
+seeds:
+  - name: activity_labels
+    description: "活動ラベルのメタデータ。dbt seed でロードされ、参照テーブルとして利用。"
+    columns:
+      - name: activity_label
+        description: "活動ラベルの数値識別子"
+        tests:
+          - not_null
+          - unique
+      - name: description
+        description: "活動内容の説明"
+        tests:
+          - not_null
+      - name: is_active
+        description: "有効な活動かどうかのフラグ"
+        tests:
+          - accepted_values:
+              values: ['true', 'false']

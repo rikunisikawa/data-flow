@@ -1,86 +1,169 @@
 version: 2
 
 models:
-  - name: cleaned_activities
-    description: |
-      mHealth の stage データをクレンジングした中間テーブル。
-      - Glue の partition（subject_id）または `$path` から user_id を抽出
-      - 3軸加速度の単純平均を算出（chest / left_ankle / right_lower_arm）
-      - activity_label = 0（null クラス）を除外
+  - name: stg_mhealth_activities
+    description: "{{ doc('stg_mhealth_activities_doc') }}"
     columns:
-      - name: user_id
-        description: ユーザー ID（`subject_id` を文字列化）。
+      - name: user_id_raw
+        description: "Glue パーティションまたはファイルパスから抽出したユーザー ID。"
+        data_type: varchar
         tests:
           - not_null
       - name: activity_label
-        description: 活動ラベル（0 は除外対象、1 以降が有効クラス）。
+        description: "活動ラベル（0 は vars.invalid_activity_label で制御）。"
+        data_type: bigint
         tests:
           - not_null
+          - relationships:
+              to: ref('activity_labels')
+              field: activity_label
+      - name: chest_acc_x
+        description: "胸部加速度 X"
+        data_type: double
+      - name: chest_acc_y
+        description: "胸部加速度 Y"
+        data_type: double
+      - name: chest_acc_z
+        description: "胸部加速度 Z"
+        data_type: double
+
+  - name: int_activity_features
+    description: "{{ doc('int_activity_features_doc') }}"
+    columns:
+      - name: user_id
+        data_type: varchar
+        tests:
+          - not_null
+      - name: activity_label
+        data_type: bigint
       - name: chest_acc_avg
-        description: 胸部加速度（X/Y/Z）の単純平均。
+        data_type: double
+        tests:
+          - not_null
+          - non_negative
       - name: left_ankle_acc_avg
-        description: 左足首加速度（X/Y/Z）の単純平均。
+        data_type: double
       - name: right_lower_arm_acc_avg
-        description: 右前腕加速度（X/Y/Z）の単純平均。
+        data_type: double
+
+  - name: cleaned_activities
+    description: "{{ doc('cleaned_activities_doc') }}"
+    columns:
+      - name: user_id
+        description: "ユーザー ID（`subject_id` を文字列化）。"
+        data_type: varchar
+        tests:
+          - not_null
+      - name: activity_label
+        description: "活動ラベル（0 は除外対象、1 以降が有効クラス）。"
+        data_type: bigint
+        tests:
+          - not_null
+          - relationships:
+              to: ref('activity_labels')
+              field: activity_label
+      - name: chest_acc_avg
+        description: "胸部加速度（X/Y/Z）の単純平均。"
+        data_type: double
+        tests:
+          - non_negative
+      - name: left_ankle_acc_avg
+        description: "左足首加速度（X/Y/Z）の単純平均。"
+        data_type: double
+        tests:
+          - non_negative
+      - name: right_lower_arm_acc_avg
+        description: "右前腕加速度（X/Y/Z）の単純平均。"
+        data_type: double
+        tests:
+          - non_negative
 
   - name: featured_activities
-    description: |
-      cleaned_activities を `user_id × activity_label` で集約し、3軸平均の代表統計量を算出した特徴量テーブル。
-      - chest / left_ankle / right_lower_arm それぞれについて mean / std / min / max を計算。
+    description: "{{ doc('featured_activities_doc') }}"
     columns:
       - name: user_id
-        description: ユーザー ID。
+        description: "ユーザー ID。"
+        data_type: varchar
         tests:
           - not_null
       - name: activity_label
-        description: 活動ラベル（1 以降の有効クラス）。
+        description: "活動ラベル（1 以降の有効クラス）。"
+        data_type: bigint
+        tests:
+          - not_null
+          - unique:
+              config:
+                where: "activity_description is not null"
+      - name: activity_description
+        description: "シード由来の活動説明文。"
+        data_type: varchar
         tests:
           - not_null
       - name: chest_acc_mean
-        description: 胸部加速度平均（3軸平均の平均値）。
+        description: "胸部加速度平均（3軸平均の平均値）。"
+        data_type: double
         tests:
           - not_null
       - name: chest_acc_std
-        description: 胸部加速度標準偏差（3軸平均の標準偏差）。
-        tests:
-          - not_null
+        description: "胸部加速度標準偏差（3軸平均の標準偏差）。"
+        data_type: double
       - name: chest_acc_min
-        description: 胸部加速度最小（3軸平均の最小値）。
-        tests:
-          - not_null
+        description: "胸部加速度最小（3軸平均の最小値）。"
+        data_type: double
       - name: chest_acc_max
-        description: 胸部加速度最大（3軸平均の最大値）。
-        tests:
-          - not_null
+        description: "胸部加速度最大（3軸平均の最大値）。"
+        data_type: double
       - name: left_ankle_acc_mean
-        description: 左足首加速度平均（3軸平均の平均値）。
-        tests:
-          - not_null
+        description: "左足首加速度平均（3軸平均の平均値）。"
+        data_type: double
       - name: left_ankle_acc_std
-        description: 左足首加速度標準偏差（3軸平均の標準偏差）。
-        tests:
-          - not_null
+        description: "左足首加速度標準偏差（3軸平均の標準偏差）。"
+        data_type: double
       - name: left_ankle_acc_min
-        description: 左足首加速度最小（3軸平均の最小値）。
-        tests:
-          - not_null
+        description: "左足首加速度最小（3軸平均の最小値）。"
+        data_type: double
       - name: left_ankle_acc_max
-        description: 左足首加速度最大（3軸平均の最大値）。
-        tests:
-          - not_null
+        description: "左足首加速度最大（3軸平均の最大値）。"
+        data_type: double
       - name: right_lower_arm_acc_mean
-        description: 右前腕加速度平均（3軸平均の平均値）。
-        tests:
-          - not_null
+        description: "右前腕加速度平均（3軸平均の平均値）。"
+        data_type: double
       - name: right_lower_arm_acc_std
-        description: 右前腕加速度標準偏差（3軸平均の標準偏差）。
-        tests:
-          - not_null
+        description: "右前腕加速度標準偏差（3軸平均の標準偏差）。"
+        data_type: double
       - name: right_lower_arm_acc_min
-        description: 右前腕加速度最小（3軸平均の最小値）。
-        tests:
-          - not_null
+        description: "右前腕加速度最小（3軸平均の最小値）。"
+        data_type: double
       - name: right_lower_arm_acc_max
-        description: 右前腕加速度最大（3軸平均の最大値）。
+        description: "右前腕加速度最大（3軸平均の最大値）。"
+        data_type: double
+
+  - name: fact_activity_metrics
+    description: "{{ doc('fact_activity_metrics_doc') }}"
+    columns:
+      - name: user_id
+        data_type: varchar
         tests:
           - not_null
+      - name: activity_label
+        data_type: bigint
+        tests:
+          - not_null
+      - name: activity_description
+        data_type: varchar
+      - name: chest_acc_mean
+        data_type: double
+      - name: left_ankle_acc_mean
+        data_type: double
+      - name: right_lower_arm_acc_mean
+        data_type: double
+      - name: loaded_at
+        description: "インクリメンタルロード時の取り込みタイムスタンプ。"
+        data_type: timestamp
+        tests:
+          - not_null
+    meta:
+      owner: analytics
+      product_area: movement
+      service_level: gold
+

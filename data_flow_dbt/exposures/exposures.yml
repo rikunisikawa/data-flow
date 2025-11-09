@@ -1,0 +1,31 @@
+version: 2
+
+exposures:
+  - name: mhealth_feature_dashboard
+    type: dashboard
+    owner:
+      name: Analytics Team
+      email: analytics@example.com
+    maturity: high
+    url: https://bi.example.com/dashboards/mhealth_features
+    description: |
+      Tableau ダッシュボード。`fact_activity_metrics` を参照し、mHealth 活動の傾向を可視化する。
+    depends_on:
+      - ref('fact_activity_metrics')
+    tags: ['bi', 'lineage', 'production']
+    meta:
+      business_impact: medium
+      tier: gold
+
+  - name: ml_training_pipeline
+    type: application
+    owner:
+      name: ML Platform
+      email: ml@example.com
+    description: |
+      SageMaker トレーニングジョブが `featured_activities` を特徴量ストアとして利用する。
+    depends_on:
+      - ref('featured_activities')
+    url: https://ml.example.com/pipelines/mhealth
+    maturity: medium
+    tags: ['ml', 'lineage']

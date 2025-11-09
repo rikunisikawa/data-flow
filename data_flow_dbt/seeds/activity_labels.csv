@@ -1,0 +1,7 @@
+activity_label,description,is_active
+1,Standing,true
+2,Sitting,true
+3,Lying,true
+4,Walking,true
+5,Running,true
+0,Unknown,false

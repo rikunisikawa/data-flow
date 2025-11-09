@@ -5,9 +5,17 @@ sources:
     description: Kaggle mHealth ログを Parquet 化したステージングデータ（Glue Catalog 経由）。
     database: awsdatacatalog
     schema: "{{ env_var('GLUE_STAGE_DATABASE', 'stage_mhealth') }}"
+    freshness:
+      warn_after: {count: 12, period: hour}
+      error_after: {count: 1, period: day}
+    loaded_at_field: "{{ var('source_loaded_at_field', 'ingested_at') }}"
     tables:
       - name: raw_activities
         description: 24 列の生データ（activity_label を含む）。`subject_id`/`activity_label` でパーティション。
+        external: true
+        meta:
+          owner: data-platform
+          sla: bronze
         columns:
           - name: chest_acc_x
             description: 胸部加速度 X

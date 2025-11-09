@@ -1,0 +1,25 @@
+# dbt Cloud job テンプレート
+name: mhealth nightly build
+environment_id: 12345
+schedule:
+  cron: "0 2 * * *"
+  timezone: Asia/Tokyo
+steps:
+  - name: deps
+    command: dbt deps
+  - name: seed
+    command: dbt seed --select activity_labels
+  - name: build
+    command: dbt build --selector mart_only
+  - name: snapshot
+    command: dbt snapshot
+  - name: docs
+    command: dbt docs generate
+notifications:
+  - channel: slack
+    level: warn
+    destination: https://hooks.slack.com/services/T000/B000/XXXX
+artifacts:
+  upload: true
+  bucket: example-dbt-artifacts
+  prefix: cloud-jobs/nightly

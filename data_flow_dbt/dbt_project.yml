@@ -1,34 +1,56 @@
-
-# Name your project! Project names should contain only lowercase characters
-# and underscores. A good package name should reflect your organization's
-# name or the intended use of these models
 name: 'data_flow_dbt'
 version: '1.0.0'
-
-# This setting configures which "profile" dbt uses for this project.
+config-version: 2
 profile: 'data_flow_dbt'
 
-# These configurations specify where dbt should look for different types of files.
-# The `model-paths` config, for example, states that models in this project can be
-# found in the "models/" directory. You probably won't need to change these!
 model-paths: ["models"]
 analysis-paths: ["analyses"]
 test-paths: ["tests"]
 seed-paths: ["seeds"]
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
+asset-paths: ["exposures"]
+exposures-paths: ["exposures"]
 
-clean-targets:         # directories to be removed by `dbt clean`
+clean-targets:
   - "target"
   - "dbt_packages"
 
+on-run-start:
+  - "{{ log('Starting dbt run for ' ~ target.name ~ ' environment', info=True) }}"
 
-# Configuring models
-# Full documentation: https://docs.getdbt.com/docs/configuring-models
+on-run-end:
+  - "{{ summarize_run_artifacts(results) }}"
 
-# In this example config, we tell dbt to build all models in the example/
-# directory as views. These settings can be overridden in the individual model
-# files using the `{{ config(...) }}` macro.
+vars:
+  invalid_activity_label: 0
+  source_loaded_at_field: 'ingested_at'
+  incremental_start_time: "date_trunc('day', current_timestamp) - interval '1 day'"
+
+dispatch:
+  - macro_namespace: dbt
+    search_order: ['dbt_utils', 'dbt']
+
 models:
   data_flow_dbt:
-    +materialized: table
+    +persist_docs: {relation: true, columns: true}
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: ephemeral
+    marts:
+      +materialized: table
+    +tags: ['data-flow']
+
+seeds:
+  data_flow_dbt:
+    +quote_columns: false
+
+snapshots:
+  data_flow_dbt:
+    +target_schema: "{{ target.schema }}"
+    +target_database: "{{ target.database }}"
+
+tests:
+  data_flow_dbt:
+    +store_failures: true

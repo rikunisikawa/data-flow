@@ -1,0 +1,27 @@
+data_flow_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: athena
+      region_name: "{{ env_var('AWS_REGION', 'us-east-1') }}"
+      s3_staging_dir: "s3://example-dev-dbt-query-results/"
+      work_group: primary
+      database: "{{ env_var('DBT_DEV_DATABASE', 'stage_mhealth') }}"
+      schema: analytics_dev
+      threads: 4
+    stg:
+      type: athena
+      region_name: "{{ env_var('AWS_REGION', 'us-east-1') }}"
+      s3_staging_dir: "s3://example-stg-dbt-query-results/"
+      work_group: analytics
+      database: "{{ env_var('DBT_STG_DATABASE', 'stage_mhealth') }}"
+      schema: analytics_stg
+      threads: 6
+    prod:
+      type: athena
+      region_name: "{{ env_var('AWS_REGION', 'us-east-1') }}"
+      s3_staging_dir: "s3://example-prod-dbt-query-results/"
+      work_group: prod
+      database: "{{ env_var('DBT_PROD_DATABASE', 'stage_mhealth') }}"
+      schema: analytics_prod
+      threads: 8
