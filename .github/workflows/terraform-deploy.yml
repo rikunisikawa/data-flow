@@ -34,13 +34,13 @@ jobs:
       - name: Build Lambda Deployment Packages
         run: bash build.sh prod
 
-      - name: Build and Push dbt Image
-        env:
-          DBT_IMAGE_TAG: prod-${{ github.sha }}
-        run: |
-          SHORT_TAG="${DBT_IMAGE_TAG:0:12}"
-          bash scripts/build_dbt_image.sh prod "${SHORT_TAG}"
-          echo "DBT_IMAGE_TAG=${SHORT_TAG}" >> "$GITHUB_ENV"
+      # - name: Build and Push dbt Image
+      #   env:
+      #     DBT_IMAGE_TAG: prod-${{ github.sha }}
+      #   run: |
+      #     SHORT_TAG="${DBT_IMAGE_TAG:0:12}"
+      #     bash scripts/build_dbt_image.sh prod "${SHORT_TAG}"
+      #     echo "DBT_IMAGE_TAG=${SHORT_TAG}" >> "$GITHUB_ENV"
 
       - name: Build and Run Terraform
         run: |
