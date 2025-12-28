@@ -259,7 +259,13 @@ resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
           "lambda:*",
           "iam:*",
           "states:*",
-          "glue:*"
+          "glue:*",
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload",
+          "ecr:PutImage"
         ]
         Resource = "*"
       }
