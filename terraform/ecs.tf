@@ -213,7 +213,7 @@ resource "aws_ecs_task_definition" "dbt" {
         "-c"
       ]
       command = [
-        "dbt run -m cleaned_activities && dbt test"
+        "dbt run -m cleaned_activities featured_activities && dbt test -m cleaned_activities featured_activities"
       ]
       workingDirectory = "/work/data_flow_dbt"
       environment = [
