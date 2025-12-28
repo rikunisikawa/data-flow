@@ -265,7 +265,8 @@ resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
           "ecr:InitiateLayerUpload",
           "ecr:UploadLayerPart",
           "ecr:CompleteLayerUpload",
-          "ecr:PutImage"
+          "ecr:PutImage",
+          "ec2:DescribeAvailabilityZones"
         ]
         Resource = "*"
       }
