@@ -18,7 +18,7 @@
 
 ## 制約/Assumptions
 - Athena + Glue Data Catalog を継続利用。
-- VPC 内 Fargate（Private Subnet + NAT）で外部エンドポイントに到達。
+- VPC 内 Fargate（パブリックサブネット + Public IP 付与）で外部エンドポイントに到達。
 
 ## 受け入れ基準（Acceptance Criteria）
 - AC-1: dev 環境で Step Functions 実行完了（dbt ステップ成功）を確認。
@@ -29,6 +29,6 @@
 - ECR: `data-platform/dbt`（タグ: `dev|prod-<semver>`）。
 - ECS/Fargate: 1 サービス（on-demand 起動用に RunTask のみ、常駐サービスは不要）。
 - Step Functions: `Download` → `Convert` → `Run dbt (ECS)` → `Done`（Catch/Fail 設計を維持）。
-- ネットワーク: VPC/Private Subnet/NAT/SG（最小開放）。
+- ネットワーク: VPC/パブリックサブネット/IGW/SG（最小開放、NAT なし）。
 
 ---

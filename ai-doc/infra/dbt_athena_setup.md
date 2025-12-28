@@ -12,14 +12,15 @@ KaggleHub経由で取得した mHealth データセットをETLし、 Glue Data 
 
 ## 1️⃣ このリポジトリでの実行方法（Quick Start）
 
-本プロジェクトでは、以下のどちらでも dbt を実行できます。
+本プロジェクトでは、以下のいずれの経路でも dbt を実行できます。
 
 - ローカル実行（既存）: ラッパー `data_flow_dbt/scripts/with-env.sh` を使用。
-- Docker実行（新規）: `docker/dbt/docker-compose.yml` を使用。
+- Docker実行（既存）: `docker/dbt/docker-compose.yml` を使用。
+- ECS Fargate 実行（Step Functions 経由）: Terraform で定義された Fargate タスクを `RunTask` し、`dbt run -m cleaned_activities && dbt test` を自動実行。
 
 前提（共通）:
 - ルートの `.env.dev`（または `.env`）で `S3_STAGING_DIR`/`S3_DATA_DIR`/`AWS_REGION`/`GLUE_STAGE_DATABASE`/`DBT_SCHEMA`/`ATHENA_WORK_GROUP` を設定。参照: `.env.dev`。
-- プロファイルはリポジトリ同梱の `.dbt/profiles.yml` を使用（`DBT_PROFILES_DIR=/work/.dbt`）。
+- プロファイルはリポジトリ同梱の `dbt_profiles/profiles.yml` を使用（コンテナ内では `/work/dbt_profiles`、従来のローカル実行では `DBT_PROFILES_DIR=/work/.dbt` にマウント）。
 
 実行コマンド例:
 
@@ -61,6 +62,29 @@ docker compose -f docker/dbt/docker-compose.yml run --rm dbt docs generate
 docker compose -f docker/dbt/docker-compose.yml run --rm --service-ports dbt docs serve --host 0.0.0.0 --port 8080 --no-browser
 # → ブラウザで http://localhost:8080
 ```
+
+【ECS Fargate（Step Functions連携）】
+```bash
+# 1. ECR にログインし、dbt イメージをビルドして push
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+REGION=ap-northeast-1
+REPO_URI="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/dev-data-platform/dbt"
+
+aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${REPO_URI}
+docker build -f docker/dbt/Dockerfile -t ${REPO_URI}:dev-latest .
+docker push ${REPO_URI}:dev-latest
+
+# 2. Terraform で dev ワークスペースを適用（dbt_image_tag=dev-latest）
+terraform workspace select dev
+terraform apply -var-file=dev.tfvars
+
+# 3. Step Functions の <workspace>-data-processing-state-machine を実行
+#    Download → Convert → RunDbtTask が同期で完了すれば成功
+```
+
+結果は CloudWatch Logs `/ecs/<workspace>/dbt` に出力され、`dbt run` / `dbt test` の成否を確認できる。失敗時は該当タスクのログから SQL／Athena エラーを確認する。
+
+補足: `terraform/<workspace>.tfvars` の `dbt_image_tag` は、ECR に push したタグと一致させること（例: `dev-latest`, `prod-2025-02-01`）。
 
 Note:
 - Docker 実行時は、ホストの `~/.aws` をコンテナに read-only マウントして認証を利用します（SSO/プロファイルを含む）。
@@ -109,7 +133,7 @@ data_flow:
       work_group: primary
 ```
 
-> 本リポジトリでは `.dbt/profiles.yml` を同梱し、環境変数で設定値を切り替えます。
+> 本リポジトリでは `dbt_profiles/profiles.yml` を同梱し、環境変数で設定値を切り替えます（Fargate では `/work/dbt_profiles` を参照）。
 > Athena のクエリ一時保存場所 `s3_staging_dir` は実在バケット/パスである必要があります。
 
 ---

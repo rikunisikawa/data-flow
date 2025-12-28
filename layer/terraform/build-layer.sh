@@ -16,6 +16,15 @@ readonly ARTIFACTS_DIR="artifacts"
 readonly DOCKER_IMAGE_NAME="kaggle-layer-builder"
 readonly DOCKER_CONTAINER_NAME="temp-builder"
 
+cleanup_container() {
+  if docker ps -a --format '{{.Names}}' | grep -qx "${DOCKER_CONTAINER_NAME}"; then
+    echo "Cleaning up existing container ${DOCKER_CONTAINER_NAME}..."
+    docker rm -f "${DOCKER_CONTAINER_NAME}" >/dev/null 2>&1 || true
+  fi
+}
+
+trap cleanup_container EXIT
+
 # ビルドディレクトリのクリーンアップと作成
 echo "Cleaning up and creating artifacts directory..."
 rm -rf "${ARTIFACTS_DIR}"
@@ -26,10 +35,12 @@ echo "Building layer with custom Dockerfile for x86_64 architecture..."
 docker build --platform linux/amd64 --no-cache -t "${DOCKER_IMAGE_NAME}" ../src
 
 # Dockerコンテナから依存関係をコピー
+cleanup_container
+
 echo "Copying dependencies from Docker container..."
 docker create --name "${DOCKER_CONTAINER_NAME}" "${DOCKER_IMAGE_NAME}"
 docker cp "${DOCKER_CONTAINER_NAME}:/var/task/dependencies/." "${ARTIFACTS_DIR}/python"
-docker rm -v "${DOCKER_CONTAINER_NAME}"
+docker rm -v "${DOCKER_CONTAINER_NAME}" >/dev/null 2>&1 || true
 
 # 不要ファイルの削除
 echo "Removing unnecessary files from layer..."

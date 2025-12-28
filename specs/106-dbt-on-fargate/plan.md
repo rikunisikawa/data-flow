@@ -15,7 +15,7 @@
 - イメージ: 既存の `docker/dbt/Dockerfile` をベースに ECR へ push（タグ: `dbt:<env>-<version>`）。
 - 実行: Fargate タスク（例: 0.5 vCPU/1GB〜1 vCPU/2GB）。コマンド例: `dbt run -m cleaned_activities && dbt test`。
 - 環境変数: `.env.dev` 相当をタスク定義の env/secret で注入（`S3_STAGING_DIR`, `DBT_SCHEMA`, `GLUE_STAGE_DATABASE`, `ATHENA_WORK_GROUP` など）。
-- ネットワーク: Private Subnet + NAT（Athena/S3/STS を利用するため外向き接続が必要）。
+- ネットワーク: パブリックサブネット + IGW（AssignPublicIp=ENABLED で ECR/S3/Athena へ到達、NAT なし）。
 - 権限: 実行ロール（ECR pull）、タスクロール（Athena/Glue/S3/CloudWatch Logs 最小権限）。
 - ログ: CloudWatch Logs に集約（dbt の JSON 風単行ログ方針に準拠）。
 
@@ -33,9 +33,8 @@
 - 既存 `.env.dev` と `.dbt/profiles.yml` の変数と矛盾しない。
 
 ## リスク/対策
-- ネットワーク到達性: Private Subnet/NAT を用意。VPC エンドポイント（S3/Athena/Logs）を検討。
+- ネットワーク到達性: パブリックサブネット + Public IP で外向き接続。必要に応じて S3/Athena/Logs の VPC エンドポイントを検討。
 - コスト: タスクサイズと起動回数を管理。Step Functions のリトライ設定を適正化。
 - 権限過多: 最小権限の IAM ポリシーを作成し、データセットバケット/リージョンにスコープダウン。
 
 ---
-

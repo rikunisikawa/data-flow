@@ -130,6 +130,10 @@ resource "aws_sfn_state_machine" "data_processing_state_machine" {
     ConvertLogToParquetFunctionArn = module.convert_log_to_parquet_lambda.function_arn
     GlueJobName                    = "" # Not used anymore
     BucketName                     = local.bucket_name
+    DbtClusterArn                  = aws_ecs_cluster.dbt.arn
+    DbtTaskDefinitionArn           = aws_ecs_task_definition.dbt.arn
+    DbtSubnets                     = jsonencode(local.dbt_subnet_ids)
+    DbtSecurityGroupId             = aws_security_group.dbt_tasks.id
   })
 }
 
@@ -164,6 +168,49 @@ resource "aws_iam_role_policy" "sfn_execution_policy" {
           module.download_and_upload_lambda.function_arn,
           module.convert_log_to_parquet_lambda.function_arn,
         ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = "ecs:RunTask"
+        Resource = aws_ecs_task_definition.dbt.arn
+        Condition = {
+          ArnLike = {
+            "ecs:cluster" = aws_ecs_cluster.dbt.arn
+          }
+        }
+      },
+      {
+        Effect   = "Allow"
+        Action   = "ecs:DescribeTasks"
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "events:PutRule",
+          "events:PutTargets",
+          "events:DescribeRule",
+          "events:ListTargetsByRule",
+          "events:DeleteRule",
+          "events:RemoveTargets"
+        ]
+        Resource = [
+          "arn:aws:events:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:rule/StepFunctionsGetEventsForECSTaskRule",
+          "arn:aws:events:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:rule/StepFunctionsGetEventsForStepFunctionsExecutionStatusChangeRule"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = "iam:PassRole"
+        Resource = [
+          aws_iam_role.dbt_task_execution.arn,
+          aws_iam_role.dbt_task.arn
+        ]
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "ecs-tasks.amazonaws.com"
+          }
+        }
       }
     ]
   })
