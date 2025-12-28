@@ -2,6 +2,44 @@
 
 このドキュメントは、Terraformで管理されているAWSデータ基盤のアーキテクチャをMermaid形式で可視化したものです。
 
+## Network Architecture (Terraform)
+
+処理フローではなく、AWSのネットワーク構成に焦点を当てた図です。Terraformに存在するリソースは詳細に、存在しない要素は「未定義」として明示します。
+
+```mermaid
+flowchart TB
+    subgraph VPC["VPC ${terraform.workspace}-dbt-vpc (10.20.0.0/16)"]
+        IGW["Internet Gateway (${terraform.workspace}-dbt-igw)"]
+
+        subgraph PublicRT["Public Route Table (${terraform.workspace}-dbt-public-rt)"]
+            Route["0.0.0.0/0 -> IGW"]
+        end
+
+        subgraph PublicSubnets["Public Subnets (map_public_ip_on_launch = true)"]
+            PubA["${terraform.workspace}-dbt-public-<az1> (10.20.0.0/24)"]
+            PubB["${terraform.workspace}-dbt-public-<az2> (10.20.1.0/24)"]
+        end
+
+        SG["Security Group (${terraform.workspace}-dbt-fargate-sg)\nEgress: all / Ingress: none"]
+        ECS["ECS Fargate Task (awsvpc)"]
+
+        ECS --- SG
+        ECS --- PubA
+        ECS --- PubB
+        PubA --- PublicRT
+        PubB --- PublicRT
+        PublicRT --> IGW
+    end
+
+    NAT["NAT Gateway (Terraform未定義)"]
+    PrivateSubnets["Private Subnets (Terraform未定義)"]
+```
+
+### 補足（Terraformの定義範囲）
+- **VPC/IGW/ルートテーブル/パブリックサブネット**: `terraform/network.tf` で定義
+- **Security Group/ECS Fargate Task**: `terraform/ecs.tf` で定義
+- **プライベートサブネット/NAT Gateway**: 現状のTerraformには未定義
+
 ```mermaid
 flowchart LR
     subgraph StepFunctions[Step Functions ワークフロー]

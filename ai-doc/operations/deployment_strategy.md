@@ -31,6 +31,10 @@
 *   **役割**: dbt コンテナイメージをビルドし、環境別の ECR リポジトリ（`<env>-data-platform/dbt`）へ push する。
 *   **機能**: AWS アカウント ID の取得、ECR ログイン、`docker build` / `docker push` を一括実行。
 *   **実行方法**: `scripts/build_dbt_image.sh <env> <tag>`（例: `scripts/build_dbt_image.sh dev dev-latest`）。
+*   **オプション**:
+    - `--update-tfvars`: `terraform/<env>.tfvars` の `dbt_image_tag` を自動更新
+    - `--tfvars-path <path>`: 更新対象の tfvars パスを指定
+    - `--region <region>`: ECR リージョンを上書き
 *   **注意**: Terraform の `dbt_image_tag` と渡した `tag` を一致させる。
 
 ### 5. `terraform/main.tf`
@@ -63,6 +67,7 @@
     - `env` 引数は `dev` / `prod` のいずれか。
     - `tag` は Terraform の `dbt_image_tag` と一致させる。
     - 処理内容: `aws sts` でアカウント ID を取得 → `aws ecr get-login-password` でログイン → `docker build` → `docker push`。
+    - 例: `--update-tfvars` を付けると `terraform/<env>.tfvars` の `dbt_image_tag` を自動更新。
 
 4.  **Terraform適用**: Terraformコンテナ内で`terraform apply`を実行し、AWSリソースに変更を適用します。
     ```bash
@@ -82,3 +87,4 @@
 *   `build.sh`は、`terraform apply`を実行する前に**必ず**実行してください。そうしないと、Terraformが参照する`build/layer.zip`が最新でなかったり、S3に存在しなかったりする可能性があります。
 *   `terraform/docker-compose.yml`で定義されているTerraformコンテナには、`aws-cli`と`zip`コマンドがインストールされている必要があります。また、Dockerデーモンへのアクセス権限が必要です。
 *   `aws_iam_role.sfn_execution_role`の`inline_policy`に関する警告は、現在のところ機能に影響はありませんが、将来的に`aws_iam_role_policy`リソースへの移行が推奨されます。
+*   GitHub Actions の Terraform デプロイワークフローは dbt イメージのビルド/プッシュを行いません。必要に応じて `scripts/build_dbt_image.sh` を事前実行してください。
