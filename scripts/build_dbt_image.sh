@@ -89,14 +89,17 @@ if [ "${UPDATE_TFVARS}" = "true" ]; then
     exit 1
   fi
 
-  python - <<PY
+  export DBT_IMAGE_TAG_VALUE="${TAG}"
+  export TFVARS_PATH_VALUE="${TFVARS_PATH}"
+  python - <<'PY'
 from pathlib import Path
 import re
+import os
 
-path = Path("${TFVARS_PATH}")
+path = Path(os.environ["TFVARS_PATH_VALUE"])
 text = path.read_text()
 pattern = re.compile(r"^\\s*dbt_image_tag\\s*=.*\$", re.M)
-replacement = f'dbt_image_tag = "{TAG}"'
+replacement = f'dbt_image_tag = "{os.environ["DBT_IMAGE_TAG_VALUE"]}"'
 
 if pattern.search(text):
     text = pattern.sub(replacement, text)

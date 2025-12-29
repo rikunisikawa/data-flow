@@ -1,4 +1,4 @@
-name: Terraform Deploy (Proposed)
+name: Terraform Deploy (Permissions First)
 
 on:
   workflow_dispatch:
@@ -11,9 +11,6 @@ on:
       - 'convert_log_to_parquet/**'
       - 'layer/**'
       - 'build.sh'
-      - 'docker/dbt/**'
-      - 'dbt_profiles/**'
-      - 'scripts/build_dbt_image.sh'
 
 jobs:
   deploy:
@@ -33,14 +30,6 @@ jobs:
 
       - name: Build Lambda Deployment Packages
         run: bash build.sh prod
-
-      - name: Build and Push dbt Image
-        env:
-          DBT_IMAGE_TAG: prod-${{ github.sha }}
-        run: |
-          SHORT_TAG="${DBT_IMAGE_TAG:0:12}"
-          bash scripts/build_dbt_image.sh prod "${SHORT_TAG}"
-          echo "DBT_IMAGE_TAG=${SHORT_TAG}" >> "$GITHUB_ENV"
 
       - name: Terraform Apply (IAM First)
         run: |
