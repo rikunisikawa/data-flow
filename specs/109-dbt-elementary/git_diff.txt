@@ -1,0 +1,74 @@
+diff --git a/.env.dev b/.env.dev
+index c5afaa3..1b35f14 100644
+--- a/.env.dev
++++ b/.env.dev
+@@ -16,6 +16,8 @@ AWS_REGION="ap-northeast-1"
+ GLUE_STAGE_DATABASE="dev_stage_mhealth"
+ # Glue DB for dbt models (target schema)
+ DBT_SCHEMA="dev_processed"
++# Elementary storage schema (for monitoring tables)
++ELEMENTARY_SCHEMA="elementary"
+ ATHENA_WORK_GROUP="primary"
+ 
+ # Notes:
+diff --git a/data_flow_dbt/.gitignore b/data_flow_dbt/.gitignore
+index 49f147c..edc13da 100644
+--- a/data_flow_dbt/.gitignore
++++ b/data_flow_dbt/.gitignore
+@@ -2,3 +2,4 @@
+ target/
+ dbt_packages/
+ logs/
++elementary/
+diff --git a/data_flow_dbt/dbt_project.yml b/data_flow_dbt/dbt_project.yml
+index 4abe335..2be798d 100644
+--- a/data_flow_dbt/dbt_project.yml
++++ b/data_flow_dbt/dbt_project.yml
+@@ -8,6 +8,10 @@ version: '1.0.0'
+ # This setting configures which "profile" dbt uses for this project.
+ profile: 'data_flow_dbt'
+ 
++# Elementary needs to override built-in materializations in dbt 1.8
++flags:
++  require_explicit_package_overrides_for_builtin_materializations: false
++
+ # These configurations specify where dbt should look for different types of files.
+ # The `model-paths` config, for example, states that models in this project can be
+ # found in the "models/" directory. You probably won't need to change these!
+@@ -32,3 +36,5 @@ clean-targets:         # directories to be removed by `dbt clean`
+ models:
+   data_flow_dbt:
+     +materialized: table
++  elementary:
++    +schema: "{{ env_var('ELEMENTARY_SCHEMA', 'dev_elementary') }}"
+diff --git a/docker/dbt/Dockerfile b/docker/dbt/Dockerfile
+index b66960f..acf030d 100644
+--- a/docker/dbt/Dockerfile
++++ b/docker/dbt/Dockerfile
+@@ -12,19 +12,19 @@ RUN apt-get update \
+        ca-certificates curl bash \
+     && rm -rf /var/lib/apt/lists/*
+ 
+-# Install dbt and the Athena adapter as root so the CLI is in /usr/local/bin
+-# Pin to 1.8 minor series for compatibility with existing project artifacts
+-RUN pip install \
+-      "dbt-core==1.8.*" \
+-      "dbt-athena-community==1.8.*"
+-
+ # Create non-root user after installing tools
+ RUN useradd -m -u 1000 -s /bin/bash app
+ USER app
+ WORKDIR /home/app
+ 
+-# Ensure user-local bin is in PATH (in case additional tools are installed later)
++# Ensure user-local bin is in PATH (pip --user installs here)
+ ENV PATH="/home/app/.local/bin:${PATH}"
+ 
++# Install dbt / Athena adapter / Elementary as non-root (writes to /home/app/.local)
++RUN pip install --user \
++      "dbt-core==1.8.*" \
++      "dbt-athena-community==1.8.*" \
++      "elementary-data>=0.15,<0.16"
++
+ # Expose port for `dbt docs serve`
+ EXPOSE 8080
