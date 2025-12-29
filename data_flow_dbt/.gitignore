@@ -2,3 +2,6 @@
 target/
 dbt_packages/
 logs/
+elementary/
+edr_target/dbt.log
+edr_target/edr.log

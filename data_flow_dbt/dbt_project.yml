@@ -8,6 +8,10 @@ version: '1.0.0'
 # This setting configures which "profile" dbt uses for this project.
 profile: 'data_flow_dbt'
 
+# Elementary needs to override built-in materializations in dbt 1.8
+flags:
+  require_explicit_package_overrides_for_builtin_materializations: false
+
 # These configurations specify where dbt should look for different types of files.
 # The `model-paths` config, for example, states that models in this project can be
 # found in the "models/" directory. You probably won't need to change these!
@@ -32,3 +36,5 @@ clean-targets:         # directories to be removed by `dbt clean`
 models:
   data_flow_dbt:
     +materialized: table
+  elementary:
+    +schema: "{{ env_var('ELEMENTARY_SCHEMA', 'dev_elementary') }}"

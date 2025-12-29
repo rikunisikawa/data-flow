@@ -1,0 +1,12 @@
+project_dir: /work/data_flow_dbt
+profiles_dir: /work/.dbt
+target: dev
+timezone: Asia/Tokyo
+
+# Elementary uses a separate schema to store monitoring tables
+elementary_database: "{{ env_var('ELEMENTARY_DATABASE', env_var('ATHENA_CATALOG', 'awsdatacatalog')) }}"
+elementary_schema: "{{ env_var('DBT_SCHEMA', 'processed') }}_{{ env_var('ELEMENTARY_SCHEMA', 'elementary') }}"
+
+monitor:
+  days_back: 7
+  send_anonymous_usage_stats: false
