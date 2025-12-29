@@ -5,3 +5,6 @@ logs/
 elementary/
 edr_target/dbt.log
 edr_target/edr.log
+edr_target/elementary_output.json
+edr_target/elementary_report.html
+.user_id
