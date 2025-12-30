@@ -16,7 +16,7 @@
 
 ## dbt（Athena + Glue）
 - `ai-doc/infra/dbt_athena_setup.md`: 実行手順（ローカル実行と Docker 実行の両方）、profiles/env の設定、dbt docs の生成/配信方法。
-  - Docker 例: `docker compose -f docker/dbt/docker-compose.yml up -d` → `exec dbt bash` → `dbt docs serve --host 0.0.0.0 --port 8080`。
+  - Docker 例: `docker compose -f docker/dbt/docker compose.yml up -d` → `exec dbt bash` → `dbt docs serve --host 0.0.0.0 --port 8080`。
 - `ai-doc/infra/dbt_usage_and_design.md`: 実行コマンド一覧、必要環境変数、モデル設計の要点、トラブルシュート（AccessDenied/WorkGroup/型不一致など）。
 - `ai-doc/infra/dbt_environment_overview.md`: プロファイル構成と接続タイプ（athena）整理。
 - 実プロジェクト: `data_flow_dbt/dbt_project.yml`, `data_flow_dbt/models/`（`src_mhealth.yml`/`schema.yml` で Docs 用メタデータを定義）。
@@ -30,7 +30,7 @@
 - 変換列・出力スキーマは dbt モデル（`data_flow_dbt/models/*.sql`）および `schema.yml` に記述。
 
 ## 運用/デプロイ
-- `ai-doc/operations/deployment_strategy.md`: Terraform + Layer ビルド/アップロード、docker-compose での Terraform 実行フロー。
+- `ai-doc/operations/deployment_strategy.md`: Terraform + Layer ビルド/アップロード、docker compose での Terraform 実行フロー。
 - `ai-doc/operations/workflow-usage.md`: ワークフロー利用ガイド（Issue 起票〜自動生成の運用方針）。
 - `ai-doc/operations/parallel-worktrees-for-specs-107-108.md`: git worktree を用いた `specs/107` と `specs/108` の並列開発手順。
 - `ai-doc/infra/terraform-design.md`: Terraform 設計やワークスペース分離（dev/prod）方針。
@@ -53,8 +53,8 @@
   - `./data_flow_dbt/scripts/with-env.sh dbt run -m cleaned_activities`
   - `./data_flow_dbt/scripts/with-env.sh dbt docs generate && ./data_flow_dbt/scripts/with-env.sh dbt docs serve --port 8080 --no-browser`
 - dbt（Docker）:
-  - `docker compose -f docker/dbt/docker-compose.yml up -d`
-  - `docker compose -f docker/dbt/docker-compose.yml exec dbt bash`
+  - `docker compose -f docker/dbt/docker compose.yml up -d`
+  - `docker compose -f docker/dbt/docker compose.yml exec dbt bash`
   - `dbt docs generate && dbt docs serve --host 0.0.0.0 --port 8080 --no-browser`
 
 ## 補足

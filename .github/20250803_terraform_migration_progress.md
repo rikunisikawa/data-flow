@@ -10,7 +10,7 @@ AWS SAMからTerraformへのインフラストラクチャ移行作業を開始�
     - `terraform/backend.tf` にS3バックエンド設定を記述。
     - `data-flow-tfstate` S3バケットを手動で作成。
     - `terraform/Dockerfile` を作成し、`terraform-cli` Dockerイメージをビルド。
-    - `terraform/docker-compose.yml` を作成し、`terraform-cli` コンテナを管理。
+    - `terraform/docker compose.yml` を作成し、`terraform-cli` コンテナを管理。
     - `terraform init` をコンテナ内で実行し、S3バックエンドを初期化。
 - **プロジェクト構成の設計と初期化**:
     - `terraform workspace new dev` および `terraform workspace new prod` を実行し、ワークスペースを作成。
@@ -30,7 +30,7 @@ AWS SAMからTerraformへのインフラストラクチャ移行作業を開始�
     - プロジェクトルートに `build/` ディレクトリを作成。
     - 各Lambda関数とレイヤーのzipファイルを `build/` ディレクトリに出力するようにビルドコマンドを修正。
     - `terraform/main.tf` の `filename` パスを `/app/build/` からの相対パスに修正。
-    - `docker-compose.yml` を修正し、ホストのプロジェクトルートをコンテナの `/app` にマウントするように変更。
+    - `docker compose.yml` を修正し、ホストのプロジェクトルートをコンテナの `/app` にマウントするように変更。
 - **Terraform Apply**:
     - `terraform plan` で変更内容を確認後、`terraform apply` を実行し、以下のリソースをAWS上に正常にデプロイ。
         - `aws_iam_role.lambda_execution_role`

@@ -12,7 +12,7 @@ Terraformを使用して、既存のLambda関数（`DownloadAndUploadFunction`, 
 - `terraform/main.tf`内の`templatefile`関数のパスを修正した。Dockerコンテナ内での実行時に、コンテナのルートディレクトリからの絶対パス(`/app/state_machine/data_processing.asl.json`)を参照するように変更した。
 
 ### 3. `dev`環境へのデプロイ
-- `docker-compose`経由でTerraformコマンドを実行した。
+- `docker compose`経由でTerraformコマンドを実行した。
 - `terraform plan`を実行し、以下の変更計画を確認した。
     - `aws_sfn_state_machine`リソースの新規作成
     - `aws_iam_role`（Step Functions実行用）の新規作成

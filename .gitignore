@@ -27,6 +27,8 @@ samconfig.toml
 .terraform/
 *.tfstate
 *.tfstate.backup
+terraform/edge_auth.zip
+terraform/edge_auth_build/
 
 # Build artifacts
 build/

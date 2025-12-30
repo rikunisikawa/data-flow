@@ -15,7 +15,7 @@ KaggleHub経由で取得した mHealth データセットをETLし、 Glue Data 
 本プロジェクトでは、以下のいずれの経路でも dbt を実行できます。
 
 - ローカル実行（既存）: ラッパー `data_flow_dbt/scripts/with-env.sh` を使用。
-- Docker実行（既存）: `docker/dbt/docker-compose.yml` を使用。
+- Docker実行（既存）: `docker/dbt/docker compose.yml` を使用。
 - ECS Fargate 実行（Step Functions 経由）: Terraform で定義された Fargate タスクを `RunTask` し、`dbt run -m cleaned_activities && dbt test` を自動実行。
 
 前提（共通）:
@@ -41,25 +41,25 @@ KaggleHub経由で取得した mHealth データセットをETLし、 Glue Data 
 【Docker】
 ```bash
 # ビルド
-docker compose -f docker/dbt/docker-compose.yml build
+docker compose -f docker/dbt/docker compose.yml build
 
 # 常駐起動（コンテナ内で対話実行したい場合）
-docker compose -f docker/dbt/docker-compose.yml up -d
+docker compose -f docker/dbt/docker compose.yml up -d
 
 # シェルに入る（作業ディレクトリ: /work/data_flow_dbt）
-docker compose -f docker/dbt/docker-compose.yml exec dbt bash
+docker compose -f docker/dbt/docker compose.yml exec dbt bash
 # 例: コンテナ内での実行
 dbt debug
 dbt run -m cleaned_activities
 dbt docs generate && dbt docs serve --host 0.0.0.0 --port 8080 --no-browser
 
 # 実行 / テスト
-docker compose -f docker/dbt/docker-compose.yml run --rm dbt run -m cleaned_activities
-docker compose -f docker/dbt/docker-compose.yml run --rm dbt test -m cleaned_activities
+docker compose -f docker/dbt/docker compose.yml run --rm dbt run -m cleaned_activities
+docker compose -f docker/dbt/docker compose.yml run --rm dbt test -m cleaned_activities
 
 # ドキュメント生成/配信
-docker compose -f docker/dbt/docker-compose.yml run --rm dbt docs generate
-docker compose -f docker/dbt/docker-compose.yml run --rm --service-ports dbt docs serve --host 0.0.0.0 --port 8080 --no-browser
+docker compose -f docker/dbt/docker compose.yml run --rm dbt docs generate
+docker compose -f docker/dbt/docker compose.yml run --rm --service-ports dbt docs serve --host 0.0.0.0 --port 8080 --no-browser
 # → ブラウザで http://localhost:8080
 ```
 

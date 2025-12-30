@@ -12,17 +12,10 @@ RUN apt-get update \
        ca-certificates curl bash \
     && rm -rf /var/lib/apt/lists/*
 
-# Install dbt and the Athena adapter as root so the CLI is in /usr/local/bin
-# Pin to 1.8 minor series for compatibility with existing project artifacts
-RUN pip install \
-      "dbt-core==1.8.*" \
-      "dbt-athena-community==1.8.*"
-
-# Create non-root user and working directory after installing tools
+# Create non-root user and working directory
 RUN useradd -m -u 1000 -s /bin/bash app \
     && mkdir -p /work \
     && chown app:app /work
-
 USER app
 WORKDIR /work
 
@@ -34,8 +27,15 @@ COPY --chown=app:app dbt_profiles/ /work/.dbt/
 # Maintain compatibility with existing tooling expecting /work/data_flow_dbt
 ENV DBT_PROFILES_DIR=/work/dbt_profiles
 
-# Ensure user-local bin is in PATH (in case additional tools are installed later)
+# Ensure user-local bin is in PATH (pip --user installs here)
 ENV PATH="/home/app/.local/bin:${PATH}"
+
+# Install dbt / Athena adapter / Elementary as non-root (writes to /home/app/.local)
+RUN pip install --user \
+      "dbt-core==1.8.*" \
+      "dbt-athena-community==1.8.*" \
+      "elementary-data>=0.15,<0.16" \
+      "awscli>=1.32,<2"
 
 # Expose port for `dbt docs serve`
 EXPOSE 8080

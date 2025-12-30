@@ -31,5 +31,5 @@
     - `AWS_ACCESS_KEY_ID`
     - `AWS_SECRET_ACCESS_KEY`
 - `terraform/backend.tf`にS3バックエンドが正しく設定されており、対応するS3バケットが手動で作成済みであること。
-- `terraform/Dockerfile`と`terraform/docker-compose.yml`が正しく設定されていること。
+- `terraform/Dockerfile`と`terraform/docker compose.yml`が正しく設定されていること。
 - `build.sh`スクリプトが実行可能であり、Lambdaデプロイパッケージを正しく生成すること。

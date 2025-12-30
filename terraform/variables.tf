@@ -25,3 +25,15 @@ variable "athena_workgroup" {
   type        = string
   default     = "primary"
 }
+
+variable "elementary_reports_callback_urls" {
+  description = "Cognito callback URLs for the Elementary reports viewer."
+  type        = list(string)
+  default     = ["https://example.invalid/oauth2/idpresponse"]
+}
+
+variable "elementary_reports_logout_urls" {
+  description = "Cognito logout URLs for the Elementary reports viewer."
+  type        = list(string)
+  default     = ["https://example.invalid/logout"]
+}

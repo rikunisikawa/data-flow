@@ -1,0 +1,215 @@
+/* eslint-disable no-console */
+"use strict";
+
+const https = require("https");
+const querystring = require("querystring");
+const crypto = require("crypto");
+
+const COGNITO_DOMAIN = "${cognito_domain}";
+const COGNITO_CLIENT_ID = "${cognito_client_id}";
+const COGNITO_CLIENT_SECRET = "${cognito_client_secret}";
+const COGNITO_REDIRECT_URI = "${cognito_redirect_uri}";
+const COGNITO_SCOPE = "${cognito_scope}";
+const COOKIE_NAME = "${cookie_name}";
+const CALLBACK_PATH = "${callback_path}";
+
+const jwksCache = {
+  keys: null,
+  fetchedAt: 0,
+};
+
+const JWKS_TTL_MS = 6 * 60 * 60 * 1000;
+
+function parseCookies(headers) {
+  const cookieHeader = headers.cookie && headers.cookie[0] && headers.cookie[0].value;
+  if (!cookieHeader) {
+    return {};
+  }
+  return cookieHeader.split(";").reduce((acc, part) => {
+    const [rawName, ...rest] = part.trim().split("=");
+    if (!rawName) {
+      return acc;
+    }
+    acc[rawName] = rest.join("=");
+    return acc;
+  }, {});
+}
+
+function base64UrlToBuffer(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(normalized.length + (4 - (normalized.length % 4 || 4)) % 4, "=");
+  return Buffer.from(padded, "base64");
+}
+
+function decodeJwtPart(part) {
+  return JSON.parse(base64UrlToBuffer(part).toString("utf8"));
+}
+
+function fetchJson(url) {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, (res) => {
+        let body = "";
+        res.on("data", (chunk) => {
+          body += chunk;
+        });
+        res.on("end", () => {
+          if (res.statusCode && res.statusCode >= 400) {
+            return reject(new Error(`HTTP $${res.statusCode}`));
+          }
+          try {
+            resolve(JSON.parse(body));
+          } catch (error) {
+            reject(error);
+          }
+        });
+      })
+      .on("error", reject);
+  });
+}
+
+async function getJwks() {
+  const now = Date.now();
+  if (jwksCache.keys && now - jwksCache.fetchedAt < JWKS_TTL_MS) {
+    return jwksCache.keys;
+  }
+  const jwks = await fetchJson(`$${COGNITO_DOMAIN}/.well-known/jwks.json`);
+  jwksCache.keys = jwks.keys || [];
+  jwksCache.fetchedAt = now;
+  return jwksCache.keys;
+}
+
+async function isTokenFresh(token) {
+  if (!token) {
+    return false;
+  }
+  const parts = token.split(".");
+  if (parts.length !== 3) {
+    return false;
+  }
+  try {
+    const header = decodeJwtPart(parts[0]);
+    const payload = decodeJwtPart(parts[1]);
+    if (payload.exp && Date.now() / 1000 > payload.exp) {
+      return false;
+    }
+    const keys = await getJwks();
+    const jwk = keys.find((key) => key.kid === header.kid);
+    if (!jwk) {
+      return false;
+    }
+    const publicKey = crypto.createPublicKey({ key: jwk, format: "jwk" });
+    const verifier = crypto.createVerify("RSA-SHA256");
+    verifier.update(`$${parts[0]}.$${parts[1]}`);
+    verifier.end();
+    return verifier.verify(publicKey, base64UrlToBuffer(parts[2]));
+  } catch (error) {
+    console.log("token verification failed", error.message);
+    return false;
+  }
+}
+
+function redirectResponse(location, cookies) {
+  const headers = {
+    location: [{ key: "Location", value: location }],
+  };
+  if (cookies && cookies.length > 0) {
+    headers["set-cookie"] = cookies.map((value) => ({ key: "Set-Cookie", value }));
+  }
+  return {
+    status: "302",
+    statusDescription: "Found",
+    headers,
+  };
+}
+
+function buildLoginRedirect(state) {
+  const params = querystring.stringify({
+    client_id: COGNITO_CLIENT_ID,
+    response_type: "code",
+    scope: COGNITO_SCOPE,
+    redirect_uri: COGNITO_REDIRECT_URI,
+    state,
+  });
+  return `$${COGNITO_DOMAIN}/oauth2/authorize?$${params}`;
+}
+
+function exchangeCode(code) {
+  const postData = querystring.stringify({
+    grant_type: "authorization_code",
+    client_id: COGNITO_CLIENT_ID,
+    code,
+    redirect_uri: COGNITO_REDIRECT_URI,
+  });
+
+  const authHeader = Buffer.from(
+    `$${COGNITO_CLIENT_ID}:$${COGNITO_CLIENT_SECRET}`,
+    "utf8"
+  ).toString("base64");
+
+  const options = {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Length": Buffer.byteLength(postData),
+      Authorization: `Basic $${authHeader}`,
+    },
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(`$${COGNITO_DOMAIN}/oauth2/token`, options, (res) => {
+      let body = "";
+      res.on("data", (chunk) => {
+        body += chunk;
+      });
+      res.on("end", () => {
+        if (res.statusCode && res.statusCode >= 400) {
+          return reject(new Error(`Token exchange failed: $${res.statusCode}`));
+        }
+        try {
+          const parsed = JSON.parse(body);
+          resolve(parsed);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+    req.on("error", reject);
+    req.write(postData);
+    req.end();
+  });
+}
+
+exports.handler = async (event) => {
+  const request = event.Records[0].cf.request;
+  const headers = request.headers;
+  const cookies = parseCookies(headers);
+  const idToken = cookies[COOKIE_NAME];
+
+  if (await isTokenFresh(idToken)) {
+    return request;
+  }
+
+  if (request.uri === CALLBACK_PATH && request.querystring) {
+    const query = querystring.parse(request.querystring);
+    if (query.code) {
+      try {
+        const tokens = await exchangeCode(query.code);
+        const state = query.state
+          ? Buffer.from(query.state, "base64").toString("utf8")
+          : "/";
+        const setCookies = [
+          `$${COOKIE_NAME}=$${tokens.id_token}; Path=/; HttpOnly; Secure; SameSite=Lax`,
+          `access_token=$${tokens.access_token}; Path=/; HttpOnly; Secure; SameSite=Lax`,
+        ];
+        return redirectResponse(state, setCookies);
+      } catch (error) {
+        console.log("token exchange error", error.message);
+      }
+    }
+  }
+
+  const originalPath = request.uri + (request.querystring ? `?$${request.querystring}` : "");
+  const state = Buffer.from(originalPath, "utf8").toString("base64");
+  return redirectResponse(buildLoginRedirect(state));
+};
