@@ -88,3 +88,26 @@
 *   `terraform/docker compose.yml`で定義されているTerraformコンテナには、`aws-cli`と`zip`コマンドがインストールされている必要があります。また、Dockerデーモンへのアクセス権限が必要です。
 *   `aws_iam_role.sfn_execution_role`の`inline_policy`に関する警告は、現在のところ機能に影響はありませんが、将来的に`aws_iam_role_policy`リソースへの移行が推奨されます。
 *   GitHub Actions の Terraform デプロイワークフローは dbt イメージのビルド/プッシュを行いません。必要に応じて `scripts/build_dbt_image.sh` を事前実行してください。
+
+## ✅ GitHub Actions ロールの検証（ローカル）
+
+GitHub Actions と同等の権限で Terraform を検証する場合は、検証用ロールを assume して実行します。
+
+1) 検証用ロールの作成（Terraform 管理）
+   - `LocalTerraformDeployRole` を作成し、GitHubActionsTerraformDeployPolicy と同等のポリシーを付与。
+   - assume を許可する principal（IAM ユーザー/ロール ARN）を `local_terraform_deploy_principal_arn` に設定。
+
+2) assume role で一時クレデンシャル取得
+```bash
+aws sts assume-role \
+  --role-arn arn:aws:iam::<account-id>:role/LocalTerraformDeployRole \
+  --role-session-name local-terraform-validate
+```
+
+3) 環境変数に設定して Terraform を実行
+```bash
+export AWS_ACCESS_KEY_ID=...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_SESSION_TOKEN=...
+terraform apply -var-file=dev.tfvars
+```

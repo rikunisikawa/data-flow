@@ -26,6 +26,12 @@ variable "athena_workgroup" {
   default     = "primary"
 }
 
+variable "local_terraform_deploy_principal_arn" {
+  description = "ARN of the IAM user/role allowed to assume the local Terraform deploy role."
+  type        = string
+  default     = ""
+}
+
 variable "elementary_reports_callback_urls" {
   description = "Cognito callback URLs for the Elementary reports viewer."
   type        = list(string)
