@@ -53,6 +53,7 @@ flowchart LR
         Raw[raw/]
         Stage[stage/]
         Processed[processed/]
+        Reports[processed/elementary-reports/]
     end
 
     L1 -->|PutObject| Raw
@@ -60,6 +61,7 @@ flowchart LR
     L2 -->|Write Parquet| Stage
     ECS -->|Read/Write| Stage
     ECS -->|Write Models| Processed
+    ECS -->|Sync Reports| Reports
 
     ECS -->|Pull Image| ECR["ECR<br/><workspace>-data-platform/dbt"]
     ECS -->|Query| Athena[Athena]
@@ -80,6 +82,35 @@ flowchart LR
     ECS --- ENIB
     IGW --> ENIA
     IGW --> ENIB
+```
+
+```mermaid
+flowchart LR
+    subgraph Viewer["利用者"]
+        User["Browser"]
+    end
+
+    subgraph CloudFront["CloudFront OAC"]
+        CF["Distribution"]
+    end
+
+    subgraph Auth["Cognito User Pool OIDC"]
+        HostedUI["Hosted UI"]
+    end
+
+    subgraph Edge["Lambda@Edge"]
+        EdgeAuth["viewer-request auth"]
+    end
+
+    subgraph S3Reports["S3 processed/elementary-reports"]
+        ReportsOrigin["Report Objects"]
+    end
+
+    User -->|HTTPS| CF
+    CF -->|viewer-request| EdgeAuth
+    EdgeAuth -->|Redirect OIDC| HostedUI
+    HostedUI -->|Auth Code| EdgeAuth
+    CF -->|OAC Signed Request| ReportsOrigin
 ```
 
 ### データフロー概要

@@ -171,8 +171,8 @@ GitHub Actionsワークフローが引き受けるIAMロールを作成します
           - name: Build and Run Terraform
             run: |
               cd terraform
-              docker-compose build
-              docker-compose run --rm terraform-cli bash -c "terraform init && terraform apply -auto-approve"
+              docker compose build
+              docker compose run --rm terraform-cli bash -c "terraform init && terraform apply -auto-approve"
             # env:
             #   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
             #   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

@@ -102,6 +102,17 @@ Step Functions 実行時は、Download → Convert → (ECS Fargate) dbt の順�
 
 ---
 
+## 🌐 Elementary レポート配信（S3 + CloudFront + Cognito/OIDC）
+
+- **目的**: ECS で生成した Elementary の HTML レポートを安全に配信する。
+- **S3 配置**: `s3://<bucket>/processed/elementary-reports/latest/` に `index.html` とレポート一式を配置。
+- **CloudFront (OAC)**: S3 直アクセスを禁止し、CloudFront 経由のみ閲覧可能。
+- **認証**: Cognito User Pool + Hosted UI を OIDC として利用。
+- **Lambda@Edge**: CloudFront の viewer-request で認証チェックし、未認証なら Cognito にリダイレクト。
+- **運用**: ECS タスクの最後で `edr monitor report` → `aws s3 sync` により最新レポートを上書き。
+
+---
+
 ## 📦 SAM定義リソース（template.yaml）
 
 - **Lambda Functions**：

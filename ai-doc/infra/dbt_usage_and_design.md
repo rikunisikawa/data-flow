@@ -40,15 +40,15 @@
     - ドキュメント: `data_flow_dbt/scripts/with-env.sh dbt docs generate && data_flow_dbt/scripts/with-env.sh dbt docs serve --port 8080 --no-browser`
 
 ### 3.2 Docker 実行（推奨オプション）
-- Compose ファイル: `docker/dbt/docker-compose.yml`
+- Compose ファイル: `docker/dbt/docker compose.yml`
 - 例:
-  - ビルド: `docker compose -f docker/dbt/docker-compose.yml build`
-  - 常駐起動: `docker compose -f docker/dbt/docker-compose.yml up -d`
-  - 対話シェル: `docker compose -f docker/dbt/docker-compose.yml exec dbt bash`
+  - ビルド: `docker compose -f docker/dbt/docker compose.yml build`
+  - 常駐起動: `docker compose -f docker/dbt/docker compose.yml up -d`
+  - 対話シェル: `docker compose -f docker/dbt/docker compose.yml exec dbt bash`
     - 例: `dbt debug`, `dbt run -m featured_activities`
-  - 実行: `docker compose -f docker/dbt/docker-compose.yml run --rm dbt run -m featured_activities`
-  - テスト: `docker compose -f docker/dbt/docker-compose.yml run --rm dbt test -m featured_activities`
-  - ドキュメント: `docker compose -f docker/dbt/docker-compose.yml run --rm dbt docs generate && docker compose -f docker/dbt/docker-compose.yml run --rm --service-ports dbt docs serve --host 0.0.0.0 --port 8080 --no-browser`
+  - 実行: `docker compose -f docker/dbt/docker compose.yml run --rm dbt run -m featured_activities`
+  - テスト: `docker compose -f docker/dbt/docker compose.yml run --rm dbt test -m featured_activities`
+  - ドキュメント: `docker compose -f docker/dbt/docker compose.yml run --rm dbt docs generate && docker compose -f docker/dbt/docker compose.yml run --rm --service-ports dbt docs serve --host 0.0.0.0 --port 8080 --no-browser`
     - ブラウザ: `http://localhost:8080`
 
 Tips:

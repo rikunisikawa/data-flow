@@ -1,7 +1,7 @@
 # dbt/Elementary 運用手順（Docker + Athena）
 
 本ドキュメントは、本リポジトリの dbt 実行方法と Elementary の使い方をまとめた運用メモです。  
-前提: `docker/dbt/docker-compose.yml` を利用し、Athena/Glue をターゲットに実行します。
+前提: `docker/dbt/docker compose.yml` を利用し、Athena/Glue をターゲットに実行します。
 
 ## 1. 前提設定
 - `.env.dev` に DBT/Athena 設定があること
@@ -13,25 +13,25 @@
 `.env.dev` を変更した場合は **再起動では反映されません**。  
 必ず再作成してください。
 ```bash
-docker compose -f docker/dbt/docker-compose.yml up -d --force-recreate dbt
+docker compose -f docker/dbt/docker compose.yml up -d --force-recreate dbt
 ```
 
 ## 2. dbt 実行方法（Docker）
 ### 2.1 コンテナ起動
 ```bash
-docker compose -f docker/dbt/docker-compose.yml up -d
+docker compose -f docker/dbt/docker compose.yml up -d
 ```
 
 ### 2.2 基本コマンド
 ```bash
 # 依存取得
-docker compose -f docker/dbt/docker-compose.yml exec dbt dbt deps
+docker compose -f docker/dbt/docker compose.yml exec dbt dbt deps
 
 # モデル実行
-docker compose -f docker/dbt/docker-compose.yml exec dbt dbt run
+docker compose -f docker/dbt/docker compose.yml exec dbt dbt run
 
 # テスト
-docker compose -f docker/dbt/docker-compose.yml exec dbt dbt test
+docker compose -f docker/dbt/docker compose.yml exec dbt dbt test
 ```
 
 ## 3. Elementary 導入後の運用
@@ -47,13 +47,13 @@ dbt の既定ルールで `dev_processed_elementary` が作成先になります
 
 ### 3.2 Elementary テーブル作成（初回/更新時）
 ```bash
-docker compose -f docker/dbt/docker-compose.yml exec dbt \
+docker compose -f docker/dbt/docker compose.yml exec dbt \
   dbt build --select elementary --full-refresh
 ```
 
 ### 3.3 レポート生成
 ```bash
-docker compose -f docker/dbt/docker-compose.yml exec dbt \
+docker compose -f docker/dbt/docker compose.yml exec dbt \
   edr monitor report \
     --config-dir /work/data_flow_dbt \
     --profiles-dir /work/.dbt \

@@ -14,13 +14,13 @@
 
 ---
 
-### Task 2: docker-compose の追加（dbt サービス）
+### Task 2: docker compose の追加（dbt サービス）
 - 説明: dbt コンテナを簡便に起動するための compose を作成。リポジトリを `/work` にマウントし、`.env.dev` と `~/.aws` を取り込む。常駐（`sleep infinity`）で起動し、`exec` で対話実行可能にする。
 - 成果物:
-  - `docker/dbt/docker-compose.yml`
+  - `docker/dbt/docker compose.yml`
 - 検証方法:
-  - `docker compose -f docker/dbt/docker-compose.yml up -d` が成功し、`docker compose -f docker/dbt/docker-compose.yml ps` に `dbt` が表示される。
-  - `docker compose -f docker/dbt/docker-compose.yml exec dbt dbt debug` がプロファイル検出まで成功（Athena 接続は認証次第）。
+  - `docker compose -f docker/dbt/docker compose.yml up -d` が成功し、`docker compose -f docker/dbt/docker compose.yml ps` に `dbt` が表示される。
+  - `docker compose -f docker/dbt/docker compose.yml exec dbt dbt debug` がプロファイル検出まで成功（Athena 接続は認証次第）。
 
 ---
 
@@ -59,8 +59,8 @@
 - 成果物:
   - 変更なし（検証ログ/手順）
 - 検証方法:
-  - `docker compose -f docker/dbt/docker-compose.yml run --rm dbt docs generate` が `data_flow_dbt/target/` に成果物を生成。
-  - `docker compose -f docker/dbt/docker-compose.yml run --rm --service-ports dbt dbt docs serve --host 0.0.0.0 --port 8080 --no-browser` 後、`http://localhost:8080` で表示確認。
+  - `docker compose -f docker/dbt/docker compose.yml run --rm dbt docs generate` が `data_flow_dbt/target/` に成果物を生成。
+  - `docker compose -f docker/dbt/docker compose.yml run --rm --service-ports dbt dbt docs serve --host 0.0.0.0 --port 8080 --no-browser` 後、`http://localhost:8080` で表示確認。
   - もしくは常駐中のコンテナで `exec dbt bash` → `dbt docs serve --host 0.0.0.0 --port 8080 --no-browser`。
 
 ---
@@ -96,7 +96,7 @@
 ---
 
 ### 参考コマンド（検証時）
-- `docker compose -f docker/dbt/docker-compose.yml up -d`
-- `docker compose -f docker/dbt/docker-compose.yml exec dbt dbt debug`
-- `docker compose -f docker/dbt/docker-compose.yml run --rm dbt run -m cleaned_activities`
-- `docker compose -f docker/dbt/docker-compose.yml run --rm --service-ports dbt dbt docs serve --host 0.0.0.0 --port 8080 --no-browser`
+- `docker compose -f docker/dbt/docker compose.yml up -d`
+- `docker compose -f docker/dbt/docker compose.yml exec dbt dbt debug`
+- `docker compose -f docker/dbt/docker compose.yml run --rm dbt run -m cleaned_activities`
+- `docker compose -f docker/dbt/docker compose.yml run --rm --service-ports dbt dbt docs serve --host 0.0.0.0 --port 8080 --no-browser`

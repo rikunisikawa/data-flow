@@ -43,7 +43,7 @@
 *   **レイヤーの参照**: `aws_lambda_layer_version`リソースは、`build/layer.zip`をS3から参照する形式（`s3_bucket`, `s3_key`）を採用しています。
 *   **変更検知**: `source_code_hash`属性を使用して、`build/layer.zip`の内容変更を検知し、レイヤーの新しいバージョンをデプロイします。
 
-### 5. `terraform/docker-compose.yml`
+### 5. `terraform/docker compose.yml`
 
 *   **役割**: Terraformの実行環境をDockerコンテナとして定義します。
 *   **パス**: プロジェクトルートはコンテナ内の`/app`にマウントされます。
@@ -71,7 +71,7 @@
 
 4.  **Terraform適用**: Terraformコンテナ内で`terraform apply`を実行し、AWSリソースに変更を適用します。
     ```bash
-    docker compose -f terraform/docker-compose.yml run --rm terraform terraform apply -var-file=dev.tfvars
+    docker compose -f terraform/docker compose.yml run --rm terraform terraform apply -var-file=dev.tfvars
     ```
 
 ## ✅ 解決された課題とポイント
@@ -85,6 +85,6 @@
 ## ⚠️ 注意事項
 
 *   `build.sh`は、`terraform apply`を実行する前に**必ず**実行してください。そうしないと、Terraformが参照する`build/layer.zip`が最新でなかったり、S3に存在しなかったりする可能性があります。
-*   `terraform/docker-compose.yml`で定義されているTerraformコンテナには、`aws-cli`と`zip`コマンドがインストールされている必要があります。また、Dockerデーモンへのアクセス権限が必要です。
+*   `terraform/docker compose.yml`で定義されているTerraformコンテナには、`aws-cli`と`zip`コマンドがインストールされている必要があります。また、Dockerデーモンへのアクセス権限が必要です。
 *   `aws_iam_role.sfn_execution_role`の`inline_policy`に関する警告は、現在のところ機能に影響はありませんが、将来的に`aws_iam_role_policy`リソースへの移行が推奨されます。
 *   GitHub Actions の Terraform デプロイワークフローは dbt イメージのビルド/プッシュを行いません。必要に応じて `scripts/build_dbt_image.sh` を事前実行してください。

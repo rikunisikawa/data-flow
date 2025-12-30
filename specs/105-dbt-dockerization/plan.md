@@ -10,7 +10,7 @@
 - 対象: dbt CLI 実行環境（ビルド・実行・ドキュメント閲覧）。
 - 非対象: Lambda/Step Functions/Glue/Terraform の Docker 化（Terraform 用 compose は既存を尊重）。
 - 変更を加える可能性がある箇所:
-  - 新規: `docker/dbt/Dockerfile`、`docker/dbt/docker-compose.yml`（またはルートに `docker-compose.dbt.yml`）。
+  - 新規: `docker/dbt/Dockerfile`、`docker/dbt/docker compose.yml`（またはルートに `docker compose.dbt.yml`）。
   - 新規: `data_flow_dbt/scripts/dbt-docker.sh`（ラッパー）
   - 既存: `ai-doc/infra/dbt_athena_setup.md`（Docker 手順の追記）
 
@@ -37,7 +37,7 @@
 1. コンテナ設計
    - Dockerfile と compose の設計（ユーザー、依存、ENTRYPOINT）。
 2. 実装
-   - `docker/dbt/Dockerfile` と `docker/dbt/docker-compose.yml` を追加。
+   - `docker/dbt/Dockerfile` と `docker/dbt/docker compose.yml` を追加。
 3. ラッパー（任意）
    - 必要に応じて `data_flow_dbt/scripts/dbt-docker.sh` を追加し、`dbt` コマンド互換の UX を提供（現状は compose の `exec`を推奨）。
 4. 検証
@@ -49,7 +49,7 @@
    - ローカル CLI は温存（`with-env.sh` も継続可）。必要なら Docker 用ファイルを削除するだけで復旧可能。
 
 ## 受け入れ条件（Definition of Done）
-- `docker compose -f docker/dbt/docker-compose.yml run --rm dbt dbt debug` が成功する。
+- `docker compose -f docker/dbt/docker compose.yml run --rm dbt dbt debug` が成功する。
 - `dbt run/test` が Docker で実行可能であり、Athena/Glue への接続と S3 出力が既存と同じである。
 - `dbt docs generate && dbt docs serve --host 0.0.0.0 --port 8080 --no-browser` が Docker で動作し、`http://localhost:8080` にアクセスできる。
 - `.env.dev` と `.dbt/profiles.yml` を変更せずに動作する。
