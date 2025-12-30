@@ -34,7 +34,8 @@ ENV PATH="/home/app/.local/bin:${PATH}"
 RUN pip install --user \
       "dbt-core==1.8.*" \
       "dbt-athena-community==1.8.*" \
-      "elementary-data>=0.15,<0.16"
+      "elementary-data>=0.15,<0.16" \
+      "awscli>=1.32,<2"
 
 # Expose port for `dbt docs serve`
 EXPOSE 8080
