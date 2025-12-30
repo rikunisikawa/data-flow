@@ -213,7 +213,7 @@ resource "aws_ecs_task_definition" "dbt" {
         "-c"
       ]
       command = [
-        "dbt run -m cleaned_activities featured_activities && dbt test -m cleaned_activities featured_activities"
+        "dbt run -m cleaned_activities featured_activities && dbt test -m cleaned_activities featured_activities && dbt build --select elementary && edr monitor report --config-dir /work/data_flow_dbt --profiles-dir /work/.dbt --project-dir /work/data_flow_dbt --profile-target dev --days-back 7 && aws s3 sync /work/data_flow_dbt/elementary/monitoring-reports/ s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/ --delete && aws s3 cp /work/data_flow_dbt/elementary/monitoring-reports/elementary_report.html s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/index.html"
       ]
       workingDirectory = "/work/data_flow_dbt"
       environment = [
@@ -223,6 +223,7 @@ resource "aws_ecs_task_definition" "dbt" {
         { name = "ATHENA_WORK_GROUP", value = var.athena_workgroup },
         { name = "GLUE_STAGE_DATABASE", value = local.dbt_stage_database },
         { name = "DBT_SCHEMA", value = local.dbt_processed_schema },
+        { name = "ELEMENTARY_SCHEMA", value = "elementary" },
         { name = "S3_STAGING_DIR", value = "s3://${aws_s3_bucket.this.id}/athena/staging/" },
         { name = "S3_DATA_DIR", value = "s3://${aws_s3_bucket.this.id}/processed/" },
         { name = "BUCKET", value = aws_s3_bucket.this.id }
