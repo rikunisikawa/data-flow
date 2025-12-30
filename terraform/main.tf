@@ -277,6 +277,7 @@ resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
           "cloudfront:ListDistributions",
           "cloudfront:GetDistribution",
           "cloudfront:ListTagsForResource",
+          "cloudfront:UpdateDistribution",
           "cloudfront:GetOriginAccessControl",
           "cloudfront:ListCachePolicies",
           "cloudfront:ListOriginRequestPolicies",
@@ -304,6 +305,30 @@ resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
       }
     ]
   })
+}
+
+resource "aws_iam_role" "local_terraform_deploy_role" {
+  name = "LocalTerraformDeployRole"
+
+  assume_role_policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [
+      {
+        Effect    = "Allow"
+        Principal = {
+          AWS = var.local_terraform_deploy_principal_arn
+        }
+        Action    = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "local_terraform_deploy_policy" {
+  name = "LocalTerraformDeployPolicy"
+  role = aws_iam_role.local_terraform_deploy_role.id
+
+  policy = aws_iam_role_policy.github_actions_terraform_deploy_policy.policy
 }
 
 module "glue_catalog_raw_activities" {
