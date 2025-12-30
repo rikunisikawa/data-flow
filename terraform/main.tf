@@ -266,10 +266,15 @@ resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
           "ecr:UploadLayerPart",
           "ecr:CompleteLayerUpload",
           "ecr:PutImage",
+          "ecr:ListTagsForResource",
+          "ecs:RegisterTaskDefinition",
+          "ecs:TagResource",
+          "ecs:UntagResource",
           "ec2:DescribeAvailabilityZones",
           "ecr:DescribeRepositories",
           "ecs:DescribeClusters",
-          "logs:DescribeLogGroups"
+          "logs:DescribeLogGroups",
+          "logs:ListTagsForResource"
         ]
         Resource = "*"
       }
