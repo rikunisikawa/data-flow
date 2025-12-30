@@ -166,6 +166,7 @@ resource "aws_iam_policy" "dbt_task" {
           "glue:GetDatabases",
           "glue:GetTable",
           "glue:GetTables",
+          "glue:GetTableVersions",
           "glue:GetPartition",
           "glue:GetPartitions",
           "glue:CreateDatabase",
@@ -216,7 +217,7 @@ resource "aws_ecs_task_definition" "dbt" {
         "-c"
       ]
       command = [
-        "dbt deps && dbt run && dbt test && dbt build --select elementary && edr monitor report --config-dir /work/data_flow_dbt --profiles-dir /work/.dbt --project-dir /work/data_flow_dbt --profile-target dev --days-back 7 && aws s3 sync /work/data_flow_dbt/elementary/monitoring-reports/ s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/ --delete && aws s3 cp /work/data_flow_dbt/elementary/monitoring-reports/elementary_report.html s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/index.html"
+        "dbt deps && /work/data_flow_dbt/scripts/apply_elementary_patches.sh && dbt run && dbt test && dbt build --select elementary && edr monitor report --config-dir /work/data_flow_dbt --profiles-dir /work/.dbt --project-dir /work/data_flow_dbt --profile-target dev --days-back 7 && aws s3 sync /work/data_flow_dbt/elementary/monitoring-reports/ s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/ --delete && aws s3 cp /work/data_flow_dbt/elementary/monitoring-reports/elementary_report.html s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/index.html"
       ]
       workingDirectory = "/work/data_flow_dbt"
       environment = [
