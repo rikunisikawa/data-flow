@@ -268,6 +268,7 @@ resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
           "ecr:PutImage",
           "ecr:ListTagsForResource",
           "ecs:RegisterTaskDefinition",
+          "ecs:DeregisterTaskDefinition",
           "ecs:TagResource",
           "ecs:UntagResource",
           "ecs:DescribeTaskDefinition",
