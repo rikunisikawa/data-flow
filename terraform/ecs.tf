@@ -213,7 +213,7 @@ resource "aws_ecs_task_definition" "dbt" {
         "-c"
       ]
       command = [
-        "dbt run -m cleaned_activities featured_activities && dbt test -m cleaned_activities featured_activities && dbt build --select elementary && edr monitor report --config-dir /work/data_flow_dbt --profiles-dir /work/.dbt --project-dir /work/data_flow_dbt --profile-target dev --days-back 7 && aws s3 sync /work/data_flow_dbt/elementary/monitoring-reports/ s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/ --delete && aws s3 cp /work/data_flow_dbt/elementary/monitoring-reports/elementary_report.html s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/index.html"
+        "dbt deps && dbt run && dbt test && dbt build --select elementary && edr monitor report --config-dir /work/data_flow_dbt --profiles-dir /work/.dbt --project-dir /work/data_flow_dbt --profile-target dev --days-back 7 && aws s3 sync /work/data_flow_dbt/elementary/monitoring-reports/ s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/ --delete && aws s3 cp /work/data_flow_dbt/elementary/monitoring-reports/elementary_report.html s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/index.html"
       ]
       workingDirectory = "/work/data_flow_dbt"
       environment = [
