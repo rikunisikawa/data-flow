@@ -293,6 +293,7 @@ resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
           "ec2:DescribeVpcs",
           "ec2:DescribeVpcAttribute",
           "ec2:DescribeNetworkAcls",
+          "ec2:DescribeInternetGateways",
           "ec2:DescribeAvailabilityZones",
           "ecr:DescribeRepositories",
           "ecs:DescribeClusters",
