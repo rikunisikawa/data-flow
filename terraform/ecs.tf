@@ -168,6 +168,7 @@ resource "aws_iam_policy" "dbt_task" {
           "glue:GetTables",
           "glue:GetPartition",
           "glue:GetPartitions",
+          "glue:CreateDatabase",
           "glue:CreateTable",
           "glue:UpdateTable",
           "glue:DeleteTable"
