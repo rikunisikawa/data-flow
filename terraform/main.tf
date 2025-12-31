@@ -260,6 +260,7 @@ resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
           "iam:*",
           "states:*",
           "glue:*",
+          "ssm:DescribeParameters",
           "ssm:GetParameter",
           "ssm:GetParameters",
           "ssm:PutParameter",
