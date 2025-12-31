@@ -20,9 +20,9 @@
 ## Phase 2: データソースへの接続
 
 -   **タスク 2.1: 接続用 IAM ユーザーの準備**
-    -   **内容:** Superset から Athena への接続に利用する、読み取り専用の IAM ユーザーの認証情報（アクセスキー、シークレットキー）を準備する。必要な IAM ポリシー（Athena, Glue, S3 への読み取り権限）が付与されていることを確認する。
-    -   **成果物:** `.env.dev` ファイルに AWS 認証情報を記載
-    -   **検証方法:** AWS マネジメントコンソールで IAM ユーザーとポリシーを確認する。
+    -   **内容:** Superset から Athena への接続に利用する、読み取り専用の IAM ユーザーを Terraform で作成し、認証情報（アクセスキー、シークレットキー）を SSM Parameter Store に保存する。必要な IAM ポリシー（Athena, Glue, S3 への読み取り権限）が付与されていることを確認する。
+    -   **成果物:** SSM Parameter Store に `/data-flow/<workspace>/superset/athena/*` を作成
+    -   **検証方法:** SSM のパラメータが取得できることを確認する。
 
 -   **タスク 2.2: Superset から Athena への接続設定**
     -   **内容:** Superset の UI から「Data」->「Databases」を選択し、Athena への接続情報を設定する。SQLAlchemy URI は `awsathena+rest://{aws_access_key_id}:{aws_secret_access_key}@athena.{region_name}.amazonaws.com:443/{schema_name}?s3_staging_dir={s3_bucket_path}` の形式となる。

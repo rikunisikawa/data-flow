@@ -1,0 +1,62 @@
+services:
+  superset-db:
+    image: postgres:15
+    container_name: superset_db
+    environment:
+      - POSTGRES_DB=superset
+      - POSTGRES_USER=superset
+      - POSTGRES_PASSWORD=superset
+    volumes:
+      - superset_db:/var/lib/postgresql/data
+
+  superset-redis:
+    image: redis:7
+    container_name: superset_redis
+    volumes:
+      - superset_redis:/data
+
+  superset:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: local/superset:dev
+    container_name: superset
+    depends_on:
+      - superset-db
+      - superset-redis
+    env_file:
+      - ../../.env.dev
+    environment:
+      - SUPERSET_ENV=production
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py
+      - SUPERSET_LOAD_EXAMPLES=no
+      - SUPERSET_DATABASE_URI=postgresql+psycopg2://superset:superset@superset-db:5432/superset
+    volumes:
+      - ./superset_config.py:/app/pythonpath/superset_config.py:ro
+      - superset_home:/app/superset_home
+    ports:
+      - "8088:8088"
+    command: ["/app/docker/docker-bootstrap.sh", "app-gunicorn"]
+
+  superset-init:
+    image: local/superset:dev
+    container_name: superset_init
+    depends_on:
+      - superset-db
+      - superset-redis
+    env_file:
+      - ../../.env.dev
+    environment:
+      - SUPERSET_ENV=production
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py
+      - SUPERSET_LOAD_EXAMPLES=no
+      - SUPERSET_DATABASE_URI=postgresql+psycopg2://superset:superset@superset-db:5432/superset
+    volumes:
+      - ./superset_config.py:/app/pythonpath/superset_config.py:ro
+      - superset_home:/app/superset_home
+    command: ["/app/docker/docker-init.sh"]
+
+volumes:
+  superset_db:
+  superset_redis:
+  superset_home:

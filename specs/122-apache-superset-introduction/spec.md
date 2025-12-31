@@ -75,6 +75,7 @@ Source → EL → S3（Bronze）→ Glue / dbt（Silver / Gold）→ Athena → 
 ### セキュリティ
 - Superset からのデータ書き込み権限は付与しない。
 - Athena 接続に用いる IAM ユーザーの権限は、必要な Glue Data Catalog と S3 バケットへの読み取りアクセスに限定する（最小権限の原則）。
+- 接続用のアクセスキーと Superset の `SECRET_KEY` は SSM Parameter Store に保管し、ローカル起動時に取得して環境変数へ設定する。
 - 個人利用を前提とし、RLS は設定しない。
 
 ### 運用
