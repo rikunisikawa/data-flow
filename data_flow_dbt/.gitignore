@@ -3,6 +3,8 @@ target/
 dbt_packages/
 logs/
 elementary/
+!patches/elementary/
+!patches/elementary/column_monitoring_query.sql
 edr_target/dbt.log
 edr_target/edr.log
 edr_target/elementary_output.json
