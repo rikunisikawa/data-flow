@@ -260,6 +260,10 @@ resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
           "iam:*",
           "states:*",
           "glue:*",
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+          "ssm:PutParameter",
+          "ssm:DeleteParameter",
           "ecr:GetAuthorizationToken",
           "ecr:BatchCheckLayerAvailability",
           "ecr:InitiateLayerUpload",
@@ -302,6 +306,16 @@ resource "aws_iam_role_policy" "github_actions_terraform_deploy_policy" {
           "logs:ListTagsForResource"
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+          "ssm:PutParameter",
+          "ssm:DeleteParameter"
+        ]
+        Resource = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/data-flow/*/superset/*"
       }
     ]
   })
