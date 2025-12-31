@@ -3,6 +3,8 @@ target/
 dbt_packages/
 logs/
 elementary/
+elementary_reports/
+!elementary_reports/.gitkeep
 !patches/elementary/
 !patches/elementary/column_monitoring_query.sql
 edr_target/dbt.log
