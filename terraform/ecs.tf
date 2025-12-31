@@ -166,8 +166,10 @@ resource "aws_iam_policy" "dbt_task" {
           "glue:GetDatabases",
           "glue:GetTable",
           "glue:GetTables",
+          "glue:GetTableVersions",
           "glue:GetPartition",
           "glue:GetPartitions",
+          "glue:CreateDatabase",
           "glue:CreateTable",
           "glue:UpdateTable",
           "glue:DeleteTable"
@@ -176,8 +178,12 @@ resource "aws_iam_policy" "dbt_task" {
           "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:catalog",
           "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:database/${local.dbt_stage_database}",
           "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:database/${local.dbt_processed_schema}",
+          "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:database/elementary",
+          "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:database/${local.dbt_processed_schema}_elementary",
           "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${local.dbt_stage_database}/*",
-          "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${local.dbt_processed_schema}/*"
+          "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${local.dbt_processed_schema}/*",
+          "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/elementary/*",
+          "arn:aws:glue:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:table/${local.dbt_processed_schema}_elementary/*"
         ]
       }
     ]
@@ -213,7 +219,7 @@ resource "aws_ecs_task_definition" "dbt" {
         "-c"
       ]
       command = [
-        "dbt run -m cleaned_activities featured_activities && dbt test -m cleaned_activities featured_activities && dbt build --select elementary && edr monitor report --config-dir /work/data_flow_dbt --profiles-dir /work/.dbt --project-dir /work/data_flow_dbt --profile-target dev --days-back 7 && aws s3 sync /work/data_flow_dbt/elementary/monitoring-reports/ s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/ --delete && aws s3 cp /work/data_flow_dbt/elementary/monitoring-reports/elementary_report.html s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/index.html"
+        "dbt deps && /work/data_flow_dbt/scripts/apply_elementary_patches.sh && dbt run && dbt test && dbt build --select elementary && mkdir -p /work/data_flow_dbt/elementary_reports/monitoring-reports && edr monitor report --config-dir /work/data_flow_dbt --profiles-dir /work/.dbt --project-dir /work/data_flow_dbt --profile-target dev --days-back 7 --output-path /work/data_flow_dbt/elementary_reports/monitoring-reports && aws s3 sync /work/data_flow_dbt/elementary_reports/monitoring-reports/ s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/ --delete && aws s3 cp /work/data_flow_dbt/elementary_reports/monitoring-reports/elementary_report.html s3://${aws_s3_bucket.this.id}/processed/elementary-reports/latest/index.html"
       ]
       workingDirectory = "/work/data_flow_dbt"
       environment = [
