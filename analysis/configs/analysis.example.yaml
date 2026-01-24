@@ -1,0 +1,7 @@
+project:
+  name: "analysis-env"
+  seed: 42
+
+paths:
+  raw_data: "data/"
+  reports: "reports/"
