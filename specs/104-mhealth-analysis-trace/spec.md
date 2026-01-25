@@ -11,6 +11,7 @@ MHEALTH（Mobile Health）データセットは、ウェアラブルセンサを
 - 既存のAWS（S3, Glue, Athena, Lambda, Step Functions）およびdbt基盤上で、MHEALTHデータセットを用いた機械学習パイプラインを構築する。
 - O'Halloran & Curry (2019) の研究で高い性能を示した**XGBoostモデル**をターゲットとし、データの前処理からモデル評価までの一連の流れを実装する。
 - dbtによるデータ変換・特徴量エンジニアリングと、Pythonによるモデル開発の連携を実現する。
+- EDAの観点と分析方針を `mhealth/analysis_plan.md` に整理し、再現可能な分析手順を提供する。
 
 ## 3. 非目的 (Non-Goals)
 
@@ -27,7 +28,10 @@ MHEALTH（Mobile Health）データセットは、ウェアラブルセンサを
 2.  **データ変換 (dbt)**:
     - `cleaned_activities`: 生データの基本的なクレンジング（データ型変換、カラム名変更など）。
     - `featured_activities`: センサーデータから統計的特徴量（平均、標準偏差、最大、最小など）を計算し、モデル学習用のテーブルを作成する。
-3.  **モデル学習・評価 (Python & AWS)**:
+3.  **EDA (Notebook)**:
+    - `notebooks/01_eda_modeling.ipynb` でデータ概要・分布・欠損を確認する。
+    - 分析の方針は `mhealth/analysis_plan.md` に記載する。
+4.  **モデル学習・評価 (Python & AWS)**:
     - **Step Functions** がパイプライン全体をオーケストレーションする。
     - **Lambda関数**がPythonスクリプトを実行する。
     - スクリプトは **AWS Data Wrangler** を用いてAthenaから `featured_activities` テーブルを読み込む。
