@@ -148,6 +148,14 @@ LOCATION 's3://aws-data-platform-20250607/processed/';
 
 ---
 
+## 📊 mHealth データ分析（EDA/モデリング）
+
+- 分析方針: `mhealth/analysis_plan.md`
+- EDA/モデル学習ノートブック: `notebooks/01_eda_modeling.ipynb`
+- ノート実行環境: `notebooks/README.md`
+
+---
+
 ## ✅ ローカルで依存ライブラリインストール
 
 ```bash
