@@ -1,35 +1,47 @@
-# データ分析環境（VS Code / Dev Containers 前提）
+# データ分析環境（Docker 前提）
 
 このフォルダはデータサイエンティスト向けの再現性と品質を重視した分析環境です。
-VS Code + Dev Containers を最優先とし、次点で `uv` / `poetry` + `venv` を想定しています。
+Docker で実行環境を固定し、テーマ別に分析を自動化できる構成を前提にしています。
 
-## 推奨フォルダ構成
+## 推奨フォルダ構成（テーマ別）
 
 ```
 analysis/
-├── src/        # 分析ロジック（関数化・再利用）
-├── notebooks/  # 探索用（最終成果は src/ へ移植）
-├── tests/      # 最低限の検証
-├── data/       # 入力データ（gitignore 対象）
-├── configs/    # YAML 設定
-├── reports/    # 図表・成果物
+├── data/           # 入力データ（gitignore 対象）
+├── configs/        # YAML 設定
+├── reports/        # 共通の成果物置き場（必要時のみ）
+├── themes/
+│   ├── <theme>/
+│   │   ├── eda/        # EDA用Notebook/実行済みNotebook
+│   │   ├── ml/         # 学習/評価用Notebookやスクリプト
+│   │   ├── artifacts/  # summaries/findings/metrics/models/reports
+│   │   ├── agent/      # state.json など状態管理
+│   │   └── src/        # テーマ専用の実装コード
+│   └── _template/      # 新規テーマ用テンプレ
+├── tests/         # 最低限の検証
 ├── pyproject.toml
 └── README.md
 ```
 
-## 使い方（Dev Containers）
+## 使い方（Docker）
 
-1. VS Code で `analysis/` を開く
-2. Command Palette → **Dev Containers: Reopen in Container**
-3. 依存をインストール（必要に応じて）
+1. イメージをビルド
+2. コンテナを起動
+3. 必要なコマンドを実行
 
 ```bash
-pip install -r requirements.txt
+docker build -f analysis/docker/Dockerfile -t data-flow-analysis .
+docker run --rm -it -v "$(pwd)":/workspace data-flow-analysis
 ```
 
-> `requirements.txt` がない場合は `pyproject.toml` に合わせて追加してください。
+コンテナ内での実行例:
+```bash
+python analysis/src/eda.py --input-dir analysis/data --output-dir analysis/reports/eda
+python analysis/themes/mhealth/src/run_pipeline.py
+```
 
 ## 使い方（uv / poetry + venv）
+ローカルで実行する場合の参考手順です。
 
 ```bash
 python -m venv .venv
@@ -44,20 +56,20 @@ pip install -e .
 - 再実行は **1コマンドで可能**にする（CLI 化推奨）。
 - 乱数 `seed` を固定する。
 - 検算ログ（行数・合計チェックなど）を出力する。
-- 成果物は `reports/` に保存する。
+- 成果物はテーマ配下の `artifacts/` に保存する。
 
 ## AI 指示テンプレ（コピペ用）
 
 ```
 あなたはデータ分析の実装担当です。
 
-・VS CodeのDev Container内で動く前提で実装してください
+・Dockerコンテナ内で動く前提で実装してください
 ・Notebook探索結果は最終的にsrc/へ移植
 ・pytestを追加
 ・Ruffに通るコード
 ・乱数seed固定
 ・検算ログを出力
-・成果物はreports/に保存
+・成果物はthemes/<theme>/artifacts/に保存
 ```
 
 ## AI ガードレール（必須）
@@ -78,3 +90,14 @@ pip install -e .
 | データリーク | 時系列分割 |
 | セル順依存 | src 移植 |
 | 結果不安定 | seed 固定 |
+
+## 自動化ループ（テーマ別）
+テーマ別にNotebook実行→要約生成→次アクション提示を行う最小構成です。
+
+- テーマ: `analysis/themes/<theme>`
+- 実行コマンド: `python analysis/themes/<theme>/src/run_pipeline.py`
+- 成果物:
+  - 実行済みNotebook: `analysis/themes/<theme>/eda/executed/`
+  - 要約JSON: `analysis/themes/<theme>/artifacts/summaries/`
+  - 要約テキスト: `analysis/themes/<theme>/artifacts/findings/`
+  - 状態管理: `analysis/themes/<theme>/agent/state.json`
