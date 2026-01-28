@@ -205,3 +205,92 @@ TBLPROPERTIES (
   'sizeKey'='15924480', 
   'typeOfData'='file')
 ```
+
+---
+
+# ✅ Fitbitストリーミング取り込み（Webhook + ポーリング）
+
+## 🎯 目的
+
+Fitbit Web APIの更新通知（Webhook）とポーリング（Heart Rate intraday）を利用して、
+S3 `raw/fitbit/` へ準リアルタイムでJSONを蓄積し、Glue/Athena/DBTで参照できるようにします。
+
+## ✅ アーキテクチャ概要
+
+- Webhook: API Gateway → Lambda(WebhookHandler) → SQS → Lambda(Fetcher) → Firehose → S3(raw)
+- Polling: EventBridge Scheduler → Lambda(Poller) → Firehose → S3(raw)
+- トークン保管: DynamoDB (`<workspace>-fitbit-tokens`)
+- 認証情報: Secrets Manager（OAuth Client / Webhook Secret）
+
+## ✅ Terraform構成（fitbit.tf）
+
+- API Gateway (HTTP API)
+- Lambda (WebhookHandler / Fetcher / Poller)
+- SQS + DLQ
+- DynamoDB (fitbit_tokens)
+- Firehose → S3(raw/fitbit/...)
+- Glue Catalog（raw_events）
+- CloudWatch Alarms
+
+## ✅ 事前準備
+
+1. Fitbit Developer Portal でアプリ登録
+2. OAuth Client ID/Secret を取得
+3. Webhook用のサブスクリプションURLを登録
+
+## ✅ Terraform変数（dev.tfvars例）
+
+```hcl
+base_bucket_name = "aws-data-platform"
+dbt_image_tag    = "latest"
+
+fitbit_client_id     = "<client_id>"
+fitbit_client_secret = "<client_secret>"
+fitbit_webhook_secret = "<webhook_secret>"
+fitbit_poll_schedule = "rate(5 minutes)"
+```
+
+## ✅ デプロイ手順
+
+```bash
+bash build.sh
+cd terraform
+terraform workspace select dev
+terraform apply -var-file=dev.tfvars
+```
+
+## ✅ Webhookテスト（ローカル例）
+
+1. `WEBHOOK_SECRET` を使って署名を生成し POST します。
+
+```bash
+body='[{"ownerId":"123","collectionType":"activities","date":"2024-01-01"}]'
+secret='<webhook_secret>'
+signature=$(python - <<PY
+import base64, hmac
+from hashlib import sha1
+body = bytes("""${body}""", 'utf-8')
+secret = bytes("""${secret}""", 'utf-8')
+digest = hmac.new(secret, body, sha1).digest()
+print(base64.b64encode(digest).decode())
+PY
+)
+
+curl -X POST \
+  -H "x-fitbit-signature: ${signature}" \
+  -H "content-type: application/json" \
+  -d "${body}" \
+  "https://<api-id>.execute-api.<region>.amazonaws.com/<workspace>/webhooks/fitbit"
+```
+
+## ✅ バックフィル方針
+
+- intraday欠損は `POLL_LOOKBACK_MINUTES` を拡大して再取得可能
+- 大規模な再取得は別バッチ（Glue/Lambda）で対応する前提
+
+## ✅ DBT/Athena
+
+- Glue Database: `${workspace}_fitbit_raw`
+- Table: `raw_events`
+- DBT Source: `fitbit_raw.raw_events`
+- Model: `stg_fitbit_events`

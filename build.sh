@@ -15,6 +15,15 @@ cd convert_log_to_parquet
 zip -r ../build/convert_log_to_parquet.zip .
 cd ..
 
+# Zip Fitbit webhook handler
+zip -r build/fitbit_webhook_handler.zip fitbit_webhook_handler fitbit_common
+
+# Zip Fitbit fetcher
+zip -r build/fitbit_fetcher.zip fitbit_fetcher fitbit_common
+
+# Zip Fitbit poller
+zip -r build/fitbit_poller.zip fitbit_poller fitbit_common
+
 # Build Lambda Layer
 bash layer/terraform/build-layer.sh "$1"
 

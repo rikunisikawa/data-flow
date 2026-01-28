@@ -43,3 +43,51 @@ variable "elementary_reports_logout_urls" {
   type        = list(string)
   default     = ["https://example.invalid/logout"]
 }
+
+variable "fitbit_client_id" {
+  description = "Fitbit OAuth client ID."
+  type        = string
+  sensitive   = true
+}
+
+variable "fitbit_client_secret" {
+  description = "Fitbit OAuth client secret."
+  type        = string
+  sensitive   = true
+}
+
+variable "fitbit_webhook_secret" {
+  description = "Fitbit webhook verification secret."
+  type        = string
+  sensitive   = true
+}
+
+variable "fitbit_poll_schedule" {
+  description = "EventBridge Scheduler expression for Fitbit poller."
+  type        = string
+  default     = "rate(5 minutes)"
+}
+
+variable "fitbit_poll_lookback_minutes" {
+  description = "Lookback window in minutes for Fitbit intraday polling."
+  type        = string
+  default     = "10"
+}
+
+variable "fitbit_min_poll_interval_seconds" {
+  description = "Minimum poll interval per user in seconds."
+  type        = string
+  default     = "300"
+}
+
+variable "fitbit_poller_shard_id" {
+  description = "Shard ID for poller lambda."
+  type        = string
+  default     = "0"
+}
+
+variable "fitbit_poller_shard_count" {
+  description = "Total shard count for poller lambda."
+  type        = string
+  default     = "1"
+}

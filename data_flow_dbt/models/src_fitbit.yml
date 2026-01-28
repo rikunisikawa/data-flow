@@ -1,0 +1,29 @@
+version: 2
+
+sources:
+  - name: fitbit_raw
+    description: Fitbit Webhook/ポーリングの生イベント（Firehose経由JSON）。
+    database: awsdatacatalog
+    schema: "{{ env_var('GLUE_FITBIT_RAW_DATABASE', 'dev_fitbit_raw') }}"
+    tables:
+      - name: raw_events
+        description: Fitbitのイベントスキーマ（event_type/dt/hourでパーティション）。
+        columns:
+          - name: event_id
+            description: UUID
+          - name: source
+            description: データソース
+          - name: user_id
+            description: 内部ユーザーID
+          - name: fitbit_user_id
+            description: FitbitユーザーID
+          - name: event_type
+            description: イベント種別
+          - name: event_time
+            description: Fitbit上のイベント時刻
+          - name: ingest_time
+            description: 取り込み時刻
+          - name: schema_version
+            description: スキーマバージョン
+          - name: payload
+            description: Fitbitレスポンスの生JSON
