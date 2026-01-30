@@ -36,8 +36,8 @@
 - `ai-doc/infra/terraform-design.md`: Terraform 設計やワークスペース分離（dev/prod）方針。
 
 ## Notebook/分析
-- `notebooks/README.md`: ノートブックの前提・実行メモ（Athena/awswrangler 前提）。
-- `notebooks/01_eda_modeling.ipynb`: Athena からの特徴量取得、前処理、Group ベース分割、学習・評価の PoC。
+- `analysis/README.md`: Docker 前提の分析環境とテーマ別運用のガイド。
+- `analysis/themes/mhealth/eda/notebooks/01_eda_overview.ipynb`: mHealth の EDA サンプル（テーマ別運用の起点）。
 
 ## トラブルシュート/ヒント
 - `ai-doc/tips/troubleshooting-notebook-mermaid.md`: Notebook JSON 破損時や Mermaid 図の復旧手順。

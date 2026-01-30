@@ -51,7 +51,7 @@
 
 運用 Tips
 - VS Code のカーネルはローカル Python 環境（venv/conda）に依存。`ipykernel` が必要。
-- notebooks/requirements.txt で依存を管理（`pip install -r notebooks/requirements.txt`）。
+- analysis/requirements.txt で依存を管理（`pip install -r analysis/requirements.txt`）。
 - 依存確認セル（例）:
   ```python
   import sys, importlib.util
@@ -69,6 +69,5 @@
   - 対象ファイル: `ai-doc/infra/etl_flow.md`
 
 - Notebook 失敗時:
-  - 「`notebooks/01_eda_modeling.ipynb` が壊れている可能性。単一 JSON オブジェクトに再生成して」
+  - 「`analysis/themes/mhealth/eda/notebooks/01_eda_overview.ipynb` が壊れている可能性。単一 JSON オブジェクトに再生成して」
   - kernelspec と language_info を含めること、cells は配列で先頭に動作確認セルを置くこと。
-
