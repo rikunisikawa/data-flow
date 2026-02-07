@@ -5,7 +5,7 @@
 ## 前提
 - Codex を VSCode で利用していること。
 - skills は `~/.codex/skills/` に配置される想定。
-- このリポジトリには skills の下書きが `agent-skills-draft/skills/` にある。
+- このリポジトリには skills が `ai-agent-skilles/skills/` にある。
 
 ## 1. VSCode 側の確認ポイント
 1. Codex の拡張機能が有効になっていることを確認する。
@@ -15,11 +15,11 @@
 ※ Codex の設定項目名は拡張機能のバージョンにより変わるため、具体名称は VSCode の設定画面から検索して確認する。
 
 ## 2. skills 配置（ローカル）
-下書きがある場合は、`~/.codex/skills/` にコピーする。
+リポジトリ内の skills を `~/.codex/skills/` にコピーする。
 
 ```bash
 mkdir -p ~/.codex/skills
-cp -R agent-skills-draft/skills/* ~/.codex/skills/
+cp -R ai-agent-skilles/skills/* ~/.codex/skills/
 ```
 
 配置後、以下で確認する。
@@ -41,6 +41,6 @@ cat ~/.codex/skills/governing-mhealth-infra/SKILL.md
 - VSCode のウィンドウを開き直しておらず、変更が反映されていない。
 
 ## 5. 本リポジトリでの運用方針
-- skills の編集は `agent-skills-draft/skills/` で行う。
+- skills の編集は `ai-agent-skilles/skills/` で行う。
 - 配置は `~/.codex/skills/` にコピーする。
 - 反映後は VSCode の再起動 or セッション再作成で確認する。
