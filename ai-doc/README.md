@@ -33,6 +33,7 @@
 - `ai-doc/operations/deployment_strategy.md`: Terraform + Layer ビルド/アップロード、docker compose での Terraform 実行フロー。
 - `ai-doc/operations/workflow-usage.md`: ワークフロー利用ガイド（Issue 起票〜自動生成の運用方針）。
 - `ai-doc/operations/parallel-worktrees-for-specs-107-108.md`: git worktree を用いた `specs/107` と `specs/108` の並列開発手順。
+- `ai-doc/operations/codex-skills-setup.md`: Codex Skills の配置・認識手順（VSCode/ローカル）。
 - `ai-doc/infra/terraform-design.md`: Terraform 設計やワークスペース分離（dev/prod）方針。
 
 ## Notebook/分析

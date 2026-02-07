@@ -1,15 +1,15 @@
-# Plan Checklist
+# 計画チェックリスト
 
-## Plan alignment
-- Confirm deliverable paths and naming (models, scripts, reports).
-- Validate required dbt tests (`dbt test`) are included in completion criteria.
+## 計画整合
+- 成果物のパスと命名（モデル、スクリプト、レポート）を確認する。
+- `dbt test` など必須テストが完了条件に含まれているか確認する。
 
-## Execution order (recommended)
-1. Define/validate sources.
-2. Build staging models.
-3. Build intermediate/feature models.
-4. Run tests and validate outputs.
+## 推奨実行順序
+1. ソース定義の確定。
+2. ステージングモデルの作成。
+3. 中間/特徴量モデルの作成。
+4. テスト実行と出力検証。
 
-## Divergence handling
-- Record TODOs if plan conflicts with Terraform migration state or current architecture.
-- Propose plan updates instead of silently changing scope.
+## 差分の扱い
+- 計画が Terraform 移行状況や現行アーキテクチャと矛盾する場合は TODO に記録する。
+- スコープを黙って変えず、計画更新案を提案する。

@@ -1,26 +1,31 @@
 ---
 name: operating-mhealth-services
-description: Operates and deploys the mHealth ETL platform. Use when running build/deploy steps, Terraform applies, dbt/Elementary execution, or documenting runbooks and operational procedures.
+description: mHealth ETL 基盤の運用・デプロイを扱う。build/deploy、Terraform apply、dbt/Elementary 実行、運用手順の整備に使用。
 ---
 
-# Operating mHealth Services
+# mHealth 運用スキル
 
-## Goal
-Provide safe, repeatable operational steps for deployment and runtime procedures.
+## 目的
+安全で再現性のある運用手順（デプロイ/実行）を提示する。
 
-## Inputs
-- Target environment (`dev` or `prod`).
-- Change scope (Lambda/Layer/dbt image/Terraform/runbook).
+## 使用する場面
+- `build.sh` 実行や成果物のアップロード、Terraform apply を行うとき。
+- dbt / Elementary をローカルまたは Docker で実行するとき。
+- ランブックや運用手順を新規作成・更新するとき。
 
-## Workflow
-1. Review `ai-doc/operations/deployment_strategy.md` and `ai-doc/infra/terraform-design.md`.
-2. Follow the checklist in `references/operations-checklist.md`.
-3. If dbt is involved, confirm env vars and preferred execution method (local wrapper or Docker).
-4. Document the runbook steps and rollback note for any operational change.
+## 入力
+- 対象環境（`dev` または `prod`）。
+- 変更範囲（Lambda/Layer/dbt イメージ/Terraform/ランブック）。
 
-## Output expectations
-- Ordered runbook steps (build → upload → terraform apply).
-- Explicit environment selection and image tag alignment.
+## 手順
+1. `ai-doc/operations/deployment_strategy.md` と `ai-doc/infra/terraform-design.md` を確認する。
+2. `references/operations-checklist.md` のチェックリストを実行する。
+3. dbt が関係する場合、必要な環境変数と実行方法（ローカル/ Docker）を確認する。
+4. 運用変更がある場合、手順とロールバックメモを明記する。
 
-## References
+## 出力期待
+- 実行順序のあるランブック手順（build → upload → terraform apply）。
+- 環境選択とイメージタグ整合の明示。
+
+## 参照
 - `references/operations-checklist.md`

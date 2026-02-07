@@ -1,25 +1,30 @@
 ---
 name: planning-mhealth-work
-description: Guides work planning and execution against ai-doc project plans for the mHealth pipeline. Use when turning plans into tasks, validating completion criteria, or reconciling plan vs. implementation.
+description: mHealth パイプラインの計画に沿って作業を進める。ai-doc の計画書をタスクに落とす、完了条件を確認する、計画と実装の差分を整理する場面で使用。
 ---
 
-# Planning mHealth Work
+# mHealth 作業計画
 
-## Goal
-Keep implementation aligned with documented plans and their completion criteria.
+## 目的
+実装を計画書と完了条件に整合させる。
 
-## Inputs
-- Target plan document path under `ai-doc/project-plans/`.
-- Planned deliverables (dbt models, scripts, reports).
+## 使用する場面
+- ai-doc の計画書を具体タスクに落とし込むとき。
+- 完了条件/受け入れ条件の確認を行うとき。
+- 計画と実装の差分を記録・提案するとき。
 
-## Workflow
-1. Read the specific plan file first (purpose, tasks, completion criteria).
-2. Use the checklist in `references/plan-checklist.md`.
-3. If plan and implementation diverge, capture TODOs and propose updates.
+## 入力
+- `ai-doc/project-plans/` 配下の対象計画ファイル。
+- 予定成果物（dbt モデル、スクリプト、レポート）。
 
-## Output expectations
-- A task breakdown tied to plan deliverables.
-- A completion checklist mapped to plan criteria.
+## 手順
+1. まず対象の計画ファイルを読む（目的、タスク、完了条件）。
+2. `references/plan-checklist.md` のチェックリストを実行する。
+3. 計画と実装の差分がある場合、TODO を残し更新提案を作成する。
 
-## References
+## 出力期待
+- 計画の成果物に紐づいたタスク分解。
+- 完了条件に対応したチェックリスト。
+
+## 参照
 - `references/plan-checklist.md`

@@ -1,14 +1,14 @@
-# Operations Checklist
+# 運用チェックリスト
 
-## Deployment sequence
-1. Run `build.sh <env>` to build Lambda/Layer artifacts and upload to S3.
-2. Ensure dbt image tag matches `terraform/<env>.tfvars` (`dbt_image_tag`).
-3. Run Terraform with explicit workspace selection (`dev`/`prod`).
+## デプロイ手順
+1. `build.sh <env>` を実行して Lambda/Layer の成果物を作成し S3 へアップロードする。
+2. dbt のイメージタグが `terraform/<env>.tfvars` の `dbt_image_tag` と一致しているか確認する。
+3. `dev`/`prod` の workspace を明示して Terraform を実行する。
 
-## dbt execution
-- Prefer `data_flow_dbt/scripts/with-env.sh` or Docker (`docker/dbt/docker compose.yml`).
-- Validate required env vars: `S3_STAGING_DIR`, `S3_DATA_DIR`, `AWS_REGION`, `GLUE_DATABASE`, `DBT_SCHEMA`, `ATHENA_WORK_GROUP`.
+## dbt 実行
+- `data_flow_dbt/scripts/with-env.sh` または Docker（`docker/dbt/docker compose.yml`）を優先する。
+- 必須環境変数を確認する: `S3_STAGING_DIR`, `S3_DATA_DIR`, `AWS_REGION`, `GLUE_DATABASE`, `DBT_SCHEMA`, `ATHENA_WORK_GROUP`。
 
-## Operational notes
-- Do not treat `terraform-deploy-workflow-change-proposal.md` as an implemented workflow.
-- Keep a short rollback note when steps modify deployment or runtime behavior.
+## 運用メモ
+- `terraform-deploy-workflow-change-proposal.md` は未実装の提案として扱う。
+- デプロイや実行手順に影響する変更には簡単なロールバックメモを残す。

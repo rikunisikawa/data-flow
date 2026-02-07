@@ -1,25 +1,30 @@
 ---
 name: triaging-mhealth-tips
-description: Troubleshoots common mHealth repo issues (Mermaid errors, notebook corruption, tool usage tips). Use when fixing docs, Mermaid diagrams, or notebook JSON issues.
+description: mHealth リポジトリのトラブルシュート（Mermaid エラー、Notebook 破損、ツール tips）を扱う。ドキュメント修正や Mermaid 図、.ipynb 修復時に使用。
 ---
 
-# Triaging mHealth Tips
+# mHealth トラブルシュート
 
-## Goal
-Resolve common documentation and notebook issues quickly with safe, repeatable steps.
+## 目的
+ドキュメントやノートブックの問題を安全かつ再現性のある手順で解決する。
 
-## Inputs
-- Target file path (Mermaid Markdown or .ipynb).
-- Error message or failure mode.
+## 使用する場面
+- Mermaid のパースエラーや図の崩れを修正するとき。
+- `.ipynb` の JSON 破損を修復するとき。
+- Spec Kit / Gemini CLI の tips を参照するとき。
 
-## Workflow
-1. Read `ai-doc/tips/troubleshooting-notebook-mermaid.md`.
-2. Apply the checklist in `references/tips-reference.md`.
-3. If editing notebooks, ensure valid single JSON object and required metadata.
+## 入力
+- 対象ファイルのパス（Mermaid Markdown または .ipynb）。
+- エラー内容や発生状況。
 
-## Output expectations
-- A concise fix plan tied to the error class.
-- A brief note on verification steps.
+## 手順
+1. `ai-doc/tips/troubleshooting-notebook-mermaid.md` を読む。
+2. `references/tips-reference.md` のチェックリストを実行する。
+3. Notebook を編集する場合、JSON が単一オブジェクトで必須メタデータを持つことを確認する。
 
-## References
+## 出力期待
+- エラー種別に紐づいた簡潔な修正プラン。
+- 検証手順の短いメモ。
+
+## 参照
 - `references/tips-reference.md`
