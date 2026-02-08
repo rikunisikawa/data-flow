@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.python-version
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data & outputs
+/data/
+/reports/
+!/data/.gitkeep
+!/reports/.gitkeep
