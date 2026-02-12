@@ -1,108 +1,108 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本ドキュメントは、Claude Code (claude.ai/code) がこのリポジトリで作業する際のガイドラインです。
 
-## Project Overview
+## プロジェクト概要
 
-AWS serverless data platform that processes the Kaggle mHealth dataset through a multi-stage ETL pipeline. Raw `.log` files are downloaded from Kaggle, converted to Parquet, transformed via dbt on Athena, and made queryable through Glue Data Catalog. Infrastructure is managed with Terraform (primary) and deployed via GitHub Actions CI/CD.
+Kaggle の mHealth データセットを多段 ETL パイプラインで処理する AWS サーバレスデータ基盤。生の `.log` ファイルを Kaggle からダウンロードし、Parquet に変換、dbt（Athena 上）で変換処理を行い、Glue Data Catalog 経由でクエリ可能にする。インフラは Terraform（主）で管理し、GitHub Actions CI/CD でデプロイする。
 
-## Architecture
+## アーキテクチャ
 
-### Data Flow (Step Functions Pipeline)
+### データフロー（Step Functions パイプライン）
 
 ```
-EventBridge (daily) → Step Functions:
-  1. Lambda① (download_and_upload) → S3 /raw/
-  2. Lambda② (convert_log_to_parquet) → S3 /stage/ (partitioned Parquet)
-  3. ECS Fargate (dbt) → S3 /processed/ (transformed tables)
-                       → Elementary reports (data quality)
-  4. Athena → Query via Glue Data Catalog
+EventBridge（日次）→ Step Functions:
+  1. Lambda①（download_and_upload）→ S3 /raw/
+  2. Lambda②（convert_log_to_parquet）→ S3 /stage/（パーティション済み Parquet）
+  3. ECS Fargate（dbt）→ S3 /processed/（変換済みテーブル）
+                       → Elementary レポート（データ品質）
+  4. Athena → Glue Data Catalog 経由でクエリ
 ```
 
-### S3 Structure
+### S3 構成
 
 ```
 s3://{workspace}-aws-data-platform-20250607/
-├── raw/              # Raw .log files from Kaggle
-├── stage/            # Parquet files partitioned by subject_id/activity_label
-├── processed/        # dbt-transformed Parquet tables
-├── athena/staging/   # Athena query results
-├── scripts/          # Glue job script
-├── layers/           # Lambda layer zip
-└── dbt-temp/         # dbt temporary staging
+├── raw/              # Kaggle からの生 .log ファイル
+├── stage/            # subject_id/activity_label でパーティションされた Parquet
+├── processed/        # dbt 変換済み Parquet テーブル
+├── athena/staging/   # Athena クエリ結果
+├── scripts/          # Glue ジョブスクリプト
+├── layers/           # Lambda レイヤー zip
+└── dbt-temp/         # dbt 一時ステージング
 ```
 
-### AWS Services Used
+### 使用 AWS サービス
 
-Lambda, S3, Step Functions, EventBridge, Glue (Data Catalog), Athena, ECS Fargate, ECR, CloudFront, Cognito, IAM, SSM Parameter Store, VPC
+Lambda, S3, Step Functions, EventBridge, Glue（Data Catalog）, Athena, ECS Fargate, ECR, CloudFront, Cognito, IAM, SSM Parameter Store, VPC
 
-## Directory Structure
+## ディレクトリ構成
 
 ```
-├── download_and_upload/          # Lambda①: Kaggle download
-├── convert_log_to_parquet/       # Lambda②: log-to-Parquet conversion
-├── glue_job/                     # Glue ETL script (legacy, replaced by dbt)
-├── data_flow_dbt/                # dbt project for Athena transformations
-│   ├── models/                   #   SQL models (cleaned_activities, etc.)
-│   ├── tests/                    #   dbt data tests
-│   ├── elementary_config.yml     #   Data quality monitoring config
+├── download_and_upload/          # Lambda①: Kaggle ダウンロード
+├── convert_log_to_parquet/       # Lambda②: log→Parquet 変換
+├── glue_job/                     # Glue ETL スクリプト（レガシー、dbt に置換済み）
+├── data_flow_dbt/                # Athena 変換用 dbt プロジェクト
+│   ├── models/                   #   SQL モデル（cleaned_activities 等）
+│   ├── tests/                    #   dbt データテスト
+│   ├── elementary_config.yml     #   データ品質監視設定
 │   └── dbt_project.yml
-├── docker/                       # Docker configs for dbt Fargate task
-├── dbt_profiles/                 # dbt connection profiles
-├── state_machine/                # Step Functions ASL definition
-├── terraform/                    # Infrastructure as Code (primary IaC)
-│   ├── modules/                  #   Reusable modules (lambda, iam, glue_*)
-│   ├── main.tf                   #   Core resources
-│   ├── ecs.tf                    #   ECS Fargate for dbt
-│   ├── network.tf                #   VPC networking
-│   ├── cognito.tf                #   Cognito auth (Elementary reports)
-│   ├── cloudfront_reports.tf     #   CloudFront distribution
-│   ├── edge_auth.tf              #   CloudFront edge auth Lambda
-│   └── dev.tfvars / prod.tfvars  #   Environment-specific variables
-├── layer/                        # Lambda layer build (Docker-based)
-│   ├── src/Dockerfile            #   Multi-stage build for x86_64
-│   ├── src/requirements.txt      #   Production Python deps
-│   └── terraform/build-layer.sh  #   Layer build script
-├── tests/                        # Python unit tests (pytest + moto)
-├── .github/workflows/            # CI/CD pipelines
-├── ai-doc/                       # Architecture docs, troubleshooting
-├── specs/                        # Spec Kit issue plans
-├── notebooks/                    # Jupyter EDA notebooks
-├── scripts/                      # Helper scripts
-├── template.yaml                 # SAM template (legacy reference only)
-└── build.sh                      # Build Lambda deployment packages
+├── docker/                       # dbt Fargate タスク用 Docker 設定
+├── dbt_profiles/                 # dbt 接続プロファイル
+├── state_machine/                # Step Functions ASL 定義
+├── terraform/                    # Infrastructure as Code（主要 IaC）
+│   ├── modules/                  #   再利用可能モジュール（lambda, iam, glue_*）
+│   ├── main.tf                   #   コアリソース
+│   ├── ecs.tf                    #   dbt 用 ECS Fargate
+│   ├── network.tf                #   VPC ネットワーク
+│   ├── cognito.tf                #   Cognito 認証（Elementary レポート）
+│   ├── cloudfront_reports.tf     #   CloudFront ディストリビューション
+│   ├── edge_auth.tf              #   CloudFront エッジ認証 Lambda
+│   └── dev.tfvars / prod.tfvars  #   環境別変数
+├── layer/                        # Lambda レイヤービルド（Docker ベース）
+│   ├── src/Dockerfile            #   x86_64 向けマルチステージビルド
+│   ├── src/requirements.txt      #   本番 Python 依存
+│   └── terraform/build-layer.sh  #   レイヤービルドスクリプト
+├── tests/                        # Python ユニットテスト（pytest + moto）
+├── .github/workflows/            # CI/CD パイプライン
+├── ai-doc/                       # アーキテクチャドキュメント、トラブルシュート
+├── specs/                        # Spec Kit Issue 計画
+├── notebooks/                    # Jupyter EDA ノートブック
+├── scripts/                      # ヘルパースクリプト
+├── template.yaml                 # SAM テンプレート（レガシー参照のみ）
+└── build.sh                      # Lambda デプロイパッケージビルド
 ```
 
-## Development Commands
+## 開発コマンド
 
-### Build Lambda Packages
+### Lambda パッケージのビルド
 
 ```bash
-# Build all Lambda zips and layer (requires Docker)
+# 全 Lambda zip とレイヤーをビルド（Docker 必須）
 bash build.sh
 
-# Output: build/download_and_upload.zip, build/convert_log_to_parquet.zip, build/layer.zip
+# 出力: build/download_and_upload.zip, build/convert_log_to_parquet.zip, build/layer.zip
 ```
 
-### Terraform Deploy
+### Terraform デプロイ
 
 ```bash
-# Dev environment
+# 開発環境
 cd terraform
 terraform workspace select dev
 terraform apply -var-file=dev.tfvars
 
-# Production deploys should go through CI/CD (push to main)
+# 本番デプロイは CI/CD 経由（main への push）で行うこと
 ```
 
-### Run Tests
+### テスト実行
 
 ```bash
 pip install -r tests/requirements.txt
 pytest tests/
 ```
 
-### Local Lambda Testing (SAM — legacy)
+### ローカル Lambda テスト（SAM — レガシー）
 
 ```bash
 sam build
@@ -118,144 +118,144 @@ dbt run --profiles-dir ../dbt_profiles
 dbt test --profiles-dir ../dbt_profiles
 ```
 
-## Key Source Files
+## 主要ソースファイル
 
-| File | Purpose |
-|------|---------|
-| `download_and_upload/download_and_upload.py` | Lambda①: Downloads mHealth dataset from Kaggle, uploads `.log` files to S3 `/raw/` |
-| `convert_log_to_parquet/convert_log_to_parquet.py` | Lambda②: Reads `.log` files from `/raw/`, converts to Parquet partitioned by `subject_id`/`activity_label`, writes to `/stage/` |
-| `glue_job/glue_job.py` | Glue ETL script for column normalization (legacy — dbt now handles transformation) |
-| `data_flow_dbt/models/cleaned_activities.sql` | dbt model: extracts `user_id` from path, computes 3-axis accelerometer averages, filters null class |
-| `state_machine/data_processing.asl.json` | Step Functions definition: Download → Convert → RunDbtTask (ECS Fargate) |
-| `terraform/main.tf` | Core Terraform config: S3, Lambda, Layer, Step Functions, IAM, Glue Catalog |
-| `terraform/ecs.tf` | ECS Fargate cluster/task definition for dbt |
-| `build.sh` | Builds Lambda deployment zips and layer |
+| ファイル | 用途 |
+|---------|------|
+| `download_and_upload/download_and_upload.py` | Lambda①: Kaggle から mHealth データセットをダウンロードし、`.log` ファイルを S3 `/raw/` にアップロード |
+| `convert_log_to_parquet/convert_log_to_parquet.py` | Lambda②: `/raw/` の `.log` ファイルを読み込み、`subject_id`/`activity_label` でパーティションした Parquet に変換し `/stage/` に書き込み |
+| `glue_job/glue_job.py` | カラム正規化用 Glue ETL スクリプト（レガシー — 現在は dbt が変換を担当） |
+| `data_flow_dbt/models/cleaned_activities.sql` | dbt モデル: パスから `user_id` を抽出、3軸加速度センサーの平均を算出、null クラスを除外 |
+| `state_machine/data_processing.asl.json` | Step Functions 定義: Download → Convert → RunDbtTask（ECS Fargate） |
+| `terraform/main.tf` | Terraform コア設定: S3, Lambda, Layer, Step Functions, IAM, Glue Catalog |
+| `terraform/ecs.tf` | dbt 用 ECS Fargate クラスタ/タスク定義 |
+| `build.sh` | Lambda デプロイ用 zip とレイヤーのビルド |
 
-## Environment Variables
+## 環境変数
 
 ### Lambda
 
-- `BUCKET_NAME`: S3 bucket name (workspace-prefixed, e.g., `dev-aws-data-platform-20250607`)
-- `KAGGLE_USERNAME`: Kaggle API username (injected from SSM Parameter Store)
-- `KAGGLE_KEY`: Kaggle API key (injected from SSM Parameter Store)
+- `BUCKET_NAME`: S3 バケット名（ワークスペース接頭辞付き、例: `dev-aws-data-platform-20250607`）
+- `KAGGLE_USERNAME`: Kaggle API ユーザー名（SSM Parameter Store から注入）
+- `KAGGLE_KEY`: Kaggle API キー（SSM Parameter Store から注入）
 
 ### dbt / Fargate
 
-- `S3_STAGING_DIR`: Athena staging directory
-- `S3_DATA_DIR`: Processed data directory
+- `S3_STAGING_DIR`: Athena ステージングディレクトリ
+- `S3_DATA_DIR`: 処理済みデータディレクトリ
 - `AWS_REGION`: `ap-northeast-1`
-- `GLUE_STAGE_DATABASE`: Glue database name (e.g., `dev_stage_mhealth`)
-- `DBT_SCHEMA`: Output schema (e.g., `dev_processed`)
-- `ELEMENTARY_SCHEMA`: Elementary schema name
+- `GLUE_STAGE_DATABASE`: Glue データベース名（例: `dev_stage_mhealth`）
+- `DBT_SCHEMA`: 出力スキーマ（例: `dev_processed`）
+- `ELEMENTARY_SCHEMA`: Elementary スキーマ名
 
-## Dependencies
+## 依存関係
 
-### Production (Lambda Layer — `layer/src/requirements.txt`)
+### 本番（Lambda レイヤー — `layer/src/requirements.txt`）
 
-- `pandas` — data manipulation
-- `fastparquet` — Parquet serialization
-- `kaggle` — Kaggle API client
-- `numpy==1.26.4` — numerical computing
-- `boto3` — AWS SDK (available in Lambda runtime, commented out in requirements)
+- `pandas` — データ操作
+- `fastparquet` — Parquet シリアライゼーション
+- `kaggle` — Kaggle API クライアント
+- `numpy==1.26.4` — 数値計算
+- `boto3` — AWS SDK（Lambda ランタイムに同梱、requirements ではコメントアウト）
 
-### Test (`tests/requirements.txt`)
+### テスト（`tests/requirements.txt`）
 
-- `pytest` — test framework
-- `moto` — AWS service mocking
-- `pyarrow` — Parquet reading/validation
+- `pytest` — テストフレームワーク
+- `moto` — AWS サービスモック
+- `pyarrow` — Parquet 読み込み/検証
 - `boto3`, `pandas`, `fastparquet`
 
-## Data Schema
+## データスキーマ
 
-The mHealth dataset has 24 columns (space-delimited `.log` files). Column names are defined in `convert_log_to_parquet.py`'s `COLUMN_NAMES` list:
+mHealth データセットは 24 列（空白区切り `.log` ファイル）。カラム名は `convert_log_to_parquet.py` の `COLUMN_NAMES` リストで定義:
 
-- 3 chest accelerometer columns (`chest_acc_x/y/z`)
-- 2 chest ECG columns (`chest_ecg_1/2`)
-- 9 left ankle sensor columns (accelerometer, gyroscope, magnetometer × 3 axes)
-- 9 right lower arm sensor columns (accelerometer, gyroscope, magnetometer × 3 axes)
-- 1 activity label (`activity_label`) — `0` = null class (excluded from stage)
+- 胸部加速度センサー 3 列（`chest_acc_x/y/z`）
+- 胸部 ECG 2 列（`chest_ecg_1/2`）
+- 左足首センサー 9 列（加速度、ジャイロ、磁力計 × 3 軸）
+- 右前腕センサー 9 列（加速度、ジャイロ、磁力計 × 3 軸）
+- 活動ラベル 1 列（`activity_label`）— `0` = null クラス（stage から除外）
 
-### Partitioning
+### パーティション
 
-Stage data is partitioned as: `stage/subject_id={id}/activity_label={label}/data_{id}_{label}.parquet`
+stage データのパーティション構成: `stage/subject_id={id}/activity_label={label}/data_{id}_{label}.parquet`
 
 ## Infrastructure as Code
 
-### Terraform (Primary)
+### Terraform（主要）
 
-- **Workspace strategy**: `dev` and `prod` environments separated by Terraform workspaces
-- **Resource naming**: `{workspace}-{resource-name}` prefix convention
-- **Modules**: `modules/lambda/`, `modules/iam/`, `modules/glue_catalog/`, `modules/glue_database/`
-- **Secrets**: Kaggle credentials stored in SSM Parameter Store (`/data-flow/kaggle/username`, `/data-flow/kaggle/key`)
+- **ワークスペース戦略**: `dev` と `prod` を Terraform ワークスペースで分離
+- **リソース命名**: `{workspace}-{resource-name}` 接頭辞規則
+- **モジュール**: `modules/lambda/`, `modules/iam/`, `modules/glue_catalog/`, `modules/glue_database/`
+- **シークレット**: Kaggle 認証情報は SSM Parameter Store に保管（`/data-flow/kaggle/username`, `/data-flow/kaggle/key`）
 
-### SAM (Legacy)
+### SAM（レガシー）
 
-`template.yaml` is retained as a design reference. Terraform is the active IaC. Do not deploy with SAM in production.
+`template.yaml` は設計参照として残置。Terraform が現行の IaC。本番環境で SAM デプロイは行わないこと。
 
 ## CI/CD
 
-### Main Pipeline (`.github/workflows/terraform-deploy.yml`)
+### メインパイプライン（`.github/workflows/terraform-deploy.yml`）
 
-Triggered on push to `main` or manual dispatch:
-1. Build Lambda packages (cached)
-2. Build and push dbt Docker image to ECR
-3. Terraform apply (two-phase: IAM first, then all resources)
+`main` への push または手動ディスパッチでトリガー:
+1. Lambda パッケージのビルド（キャッシュ有）
+2. dbt Docker イメージのビルド・ECR への push
+3. Terraform apply（2段階: IAM 先行、その後全リソース）
 
-Uses OIDC for AWS authentication (no long-lived credentials).
+認証は OIDC（長期間有効なクレデンシャルを使用しない）。
 
-### Auto-PR Pipeline (`.github/workflows/auto-pr.yml`)
+### 自動 PR パイプライン（`.github/workflows/auto-pr.yml`）
 
-Automates issue-to-PR workflow using Gemini CLI for planning and implementation.
+Gemini CLI を使用した Issue → PR 自動化ワークフロー。
 
-## Coding Conventions
+## コーディング規約
 
-### Lambda Functions
+### Lambda 関数
 
-- Return `{'statusCode': 200|500, 'body': '...'}` response format
-- Use `logging` module for structured single-line log output
-- Create boto3 clients in getter functions (`get_s3_client()`) for testability
-- No silent exception swallowing — log full stack traces and return 500
-- Design for idempotency (safe to re-run)
-- Never hardcode credentials — use environment variables from SSM
+- `{'statusCode': 200|500, 'body': '...'}` 形式でレスポンスを返却
+- `logging` モジュールで構造化された単行ログを出力
+- テスタビリティのため boto3 クライアントはゲッター関数（`get_s3_client()`）で生成
+- 例外の握りつぶし禁止 — 完全なスタックトレースをログに出力し 500 を返却
+- 冪等性を考慮した設計（再実行しても安全であること）
+- 認証情報のハードコード禁止 — SSM から環境変数で注入
 
-### Testing
+### テスト
 
-- Unit tests required for all Python changes
-- Mock all external services with `moto` (`@mock_aws`) and `unittest.mock.patch`
-- Test both success and error paths
-- Validate column counts, schema, output paths, and partition keys
+- Python の変更には必ずユニットテストを追加・更新すること
+- 外部サービスは `moto`（`@mock_aws`）と `unittest.mock.patch` でモック
+- 正常系・異常系の両方をテスト
+- カラム数、スキーマ、出力パス、パーティションキーを検証
 
-### Infrastructure
+### インフラ
 
-- All resource names prefixed with Terraform workspace
-- Use `.tfvars` files for environment-specific configuration
-- Keep IAM policies scoped to minimum required permissions
+- 全リソース名に Terraform ワークスペースを接頭辞として付与
+- 環境別設定は `.tfvars` ファイルを使用
+- IAM ポリシーは最小権限の原則に従う
 
-### Git/PR Rules
+### Git/PR ルール
 
-- PR titles must include the Issue number (e.g., `feat: description (issue #17)`)
-- Commit by feature unit or logical grouping
-- **Do not edit `.github/workflows/` files** — these affect CI/CD and require dedicated review
+- PR タイトルに Issue 番号を必ず含める（例: `feat: 新機能の追加 (issue #17)`）
+- コミットは機能単位または論理的なまとまりで分割
+- **`.github/workflows/` ファイルは編集禁止** — CI/CD に影響するため専用レビューが必要
 
-### Response Language
+### 応答言語
 
-- AI/agent responses should be in Japanese (日本語)
-- Code, identifiers, logs, error messages, and standard technical terms may remain in English
+- AI/エージェントの応答は日本語（日本語）で行うこと
+- コード、識別子、ログ、エラーメッセージ、一般的な技術用語は英語表記を許容
 
-## Change Impact Checklist
+## 変更時の影響範囲チェックリスト
 
-When making changes, verify these related areas:
+変更を行う際は、以下の関連領域を確認すること:
 
-- **Schema changes**: Update `COLUMN_NAMES` in Lambda②, Glue Catalog definition in Terraform, dbt models, and tests
-- **S3 path changes**: Update Athena external tables, dbt sources, Glue scripts, Terraform S3 references
-- **Dependency additions**: Rebuild Lambda layer (`build.sh`), verify layer size and cold start impact
-- **Lambda config changes**: Review timeout (300s), memory (1024MB), retry, and concurrency settings
-- **IAM changes**: Ensure minimum privilege; scope to specific resources and regions
-- **Cost impact**: Consider Lambda execution time, S3 object count, Athena scan volume, Fargate task duration
+- **スキーマ変更**: Lambda② の `COLUMN_NAMES`、Terraform の Glue Catalog 定義、dbt モデル、テストを同期更新
+- **S3 パス変更**: Athena 外部テーブル、dbt ソース、Glue スクリプト、Terraform の S3 参照を修正
+- **依存関係追加**: Lambda レイヤーを再ビルド（`build.sh`）、レイヤーサイズとコールドスタートへの影響を確認
+- **Lambda 設定変更**: タイムアウト（300s）、メモリ（1024MB）、リトライ、同時実行数を見直し
+- **IAM 変更**: 最小権限の原則を遵守、リソースとリージョンのスコープを確認
+- **コスト影響**: Lambda 実行時間、S3 オブジェクト数、Athena スキャン量、Fargate タスク実行時間を考慮
 
-## Troubleshooting
+## トラブルシュート
 
-- Mermaid diagram syntax errors and Jupyter notebook JSON corruption: see `ai-doc/tips/troubleshooting-notebook-mermaid.md`
-- ETL flow diagram: `ai-doc/infra/etl_flow.md`
-- Terraform design rationale: `ai-doc/infra/terraform-design.md`
-- GitHub Actions CI/CD docs: `.github/docs/github-actions/`
+- Mermaid 図の構文エラーと Jupyter Notebook の JSON 破損: `ai-doc/tips/troubleshooting-notebook-mermaid.md` を参照
+- ETL フロー図: `ai-doc/infra/etl_flow.md`
+- Terraform 設計思想: `ai-doc/infra/terraform-design.md`
+- GitHub Actions CI/CD ドキュメント: `.github/docs/github-actions/`
