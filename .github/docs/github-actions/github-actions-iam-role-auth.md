@@ -121,6 +121,16 @@ GitHub Actionsワークフローが引き受けるIAMロールを作成します
             {
                 "Effect": "Allow",
                 "Action": [
+                    "ssm:GetParameter",
+                    "ssm:GetParameters",
+                    "ssm:PutParameter",
+                    "ssm:DeleteParameter"
+                ],
+                "Resource": "arn:aws:ssm:ap-northeast-1:YOUR_AWS_ACCOUNT_ID:parameter/data-flow/*/superset/*"
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
                     "s3:ListBucket",
                     "s3:GetBucketLocation"
                 ],

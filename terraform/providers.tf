@@ -6,3 +6,5 @@ provider "aws" {
 }
 
 provider "local" {}
+
+provider "random" {}
