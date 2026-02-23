@@ -118,7 +118,7 @@ jobs:
       - name: Check each SKILL.md contains required sections
         run: |
           python3 -c "
-          import glob, sys
+          import glob, sys, re
           required_sections = [
               'name',
               '目的',
@@ -127,8 +127,14 @@ jobs:
               'ガードレール',
               '禁止',
           ]
+          # ライフサイクルSkill（00-intake〜80-improve）のみチェックする。
+          # 旧フォーマットスキル（data-intake等）は別フォーマットのため対象外。
+          lifecycle_pattern = re.compile(r'\.claude/skills/\d{2}-[^/]+/SKILL\.md')
           errors = []
           for f in glob.glob('.claude/skills/*/SKILL.md'):
+              if not lifecycle_pattern.match(f):
+                  print(f'SKIP (legacy format): {f}')
+                  continue
               with open(f) as fp:
                   content = fp.read().lower()
               for section in required_sections:
@@ -139,7 +145,7 @@ jobs:
                   print(e)
               sys.exit(1)
           else:
-              print('✅ All SKILL.md files contain required sections')
+              print('✅ All lifecycle SKILL.md files contain required sections')
           "
 
   secrets-scan:
