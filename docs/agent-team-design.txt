@@ -1,0 +1,206 @@
+==============================================================
+Agent Team Design — エージェントチーム設計書
+プロジェクト: AWS Serverless Data Platform (mHealth ETL)
+バージョン: 2.0.0（分析ライフサイクル全自動化対応版）
+==============================================================
+
+1. Agent Teamsの導入目的
+-------------------------
+mHealthデータ基盤において、分析ライフサイクル全体（受付→発見→品質→変換→
+EDA→レポート→運用→改善）を並列・分業で処理するために導入する。
+
+目的:
+  - 単一Agentでは見落としがちな観点（ガバナンス・品質・リーク等）を網羅する
+  - 各Agentが独立コンテキストで動作し、思考汚染を防ぐ
+  - 「反証タスク」を必ず含めてアンカリング・楽観バイアスを回避する
+
+前提: 実行系は禁止。設計・生成・検証のみ。
+      .claude/settings.json の hooks で破壊系/実行系を自動ブロック。
+
+
+2. Agent構成と責務
+------------------
+
+[Agent 0] Orchestrator（統合・判断・最終決定）
+  役割:
+    - ユーザーの依頼（Issue）を分析し、仮説と問いに分解する
+    - 各Agentへのタスクを割り当て・優先度を設定する
+    - 各Agentの「根拠付き提案」を統合し、矛盾を調停する
+    - 最終アウトプットを生成し、PRを作成する
+    - 80-improve → 00-intake のフィードバックを記録する
+  重要制約:
+    - 最終判断はOrchestratorのみが行う（各Agentは提案のみ）
+    - Governance Agentが「高リスク」を出した場合は実行に進まない
+
+[Agent 1] Scout（データ発見・所在マッピング）
+  役割:
+    - データの所在・形式・粒度・依存関係を整理する
+    - 抽出設計を行う（実取得はしない、設計のみ）
+    - データパイプラインのリスクを指摘する
+  使用スキル: 10-discover
+  出力: data_map.txt + grain_notes.txt + リスク一覧
+
+[Agent 2] Quality（データ契約・品質計画）
+  役割:
+    - スキーマ契約を整理する（型・NULL・値域・SLA）
+    - 品質チェック計画を生成する
+    - 将来のデータ品質テストの観点を列挙する
+  使用スキル: 20-contract-quality
+  出力: data_contract.yaml + data_quality_plan.txt
+
+[Agent 3] Builder（変換設計・ETL設計）
+  役割:
+    - データ変換ロジックの設計書を生成する
+    - 命名規約を定義する
+    - ETL/dbt/Glueの実装設計（実行はしない）
+  使用スキル: 30-transform-blueprint
+  出力: transform_blueprint.txt
+
+[Agent 4] Analyst（EDA・仮説生成）
+  役割:
+    - 分析仮説を生成する（楽観仮説と反証仮説のペアで必ず）
+    - EDA観点を拡張する（見落とされがちな角度を提示）
+    - EDAノートブックテンプレートを設計する
+  使用スキル: 40-eda
+  出力: eda_plan.txt + hypothesis_log.txt
+  重要: 仮説は「楽観仮説A + 反証仮説B」のペアで出力する。
+        単方向の仮説のみの出力は認めない（アンカリング回避）。
+
+[Agent 5] Reporter（レポート設計・サマリー生成）
+  役割:
+    - レポートの構造・アウトラインを設計する
+    - エグゼクティブサマリーのテンプレートを生成する
+    - 報告対象に合わせたコミュニケーション設計をする
+  使用スキル: 60-report
+  出力: report_outline.txt + executive_summary.txt
+
+[Agent 6] Operator（運用設計・監視・インシデント）
+  役割:
+    - 監視計画・SLO/SLI・インシデントランブックを設計する
+    - アラート起点フローの対応設計を行う
+  使用スキル: 70-operate
+  出力: monitoring_plan.txt + slos_slis.txt + runbook_incident.txt
+
+[Agent 7] ML（機械学習・モデル設計）※任意
+  役割:
+    - MLタスク定義・特徴量設計・評価設計を行う
+    - モデルカードを設計する
+    - データリーク観点を整理する
+  使用スキル: 50-ml-optional
+  出力: ml_plan.txt + eval_plan.txt + model_card.txt
+  特記: 学習・推論コードの実行は行わない。
+
+[Agent 8] Governance（PII・コンプライアンス・承認）※常時独立稼働
+  役割:
+    - PIIリスクを評価する（他Agentから独立して評価する）
+    - 承認レベルを明示する（L1/L2/L3）
+    - コンプライアンス上の懸念を報告する
+  使用スキル: data-governance-guard（既存スキル）
+  出力: PIIリスク分類表 + 承認マトリックス + コンプライアンスチェックリスト
+  重要: Governance Agentは他のAgentが「安全」と判断した場合でも
+        独立してリスク評価する。High Riskの場合はL3承認まで次フェーズ停止。
+
+
+3. 通信ルール
+-------------
+(1) 出力フォーマット（各Agentが必ず返す構造）:
+  ---
+  Agent: [エージェント名]
+  フェーズ: [対応するライフサイクルフェーズ]
+  提案内容: [具体的な提案]
+  根拠: [提案の根拠]
+  反証・懸念: [この提案が誤りうる条件・リスク] ← 必須
+  次のアクション候補: [Orchestratorへの選択肢]
+  出力ファイル: [生成したファイルのパス]
+  ---
+
+(2) 反証タスクのルール:
+  - 各Agentは提案と同時に「この提案が誤りうる条件」を1つ以上記載する
+  - Analystは「楽観仮説A + 反証仮説B」のペアを必ず出力する
+  - Governance AgentはすべてのAgentの出力を独立レビューする
+
+(3) 最終判断のルール:
+  - 提案の採否はOrchestratorのみが決定する
+  - 矛盾する場合、Orchestratorは両方をユーザーに提示する
+  - Governance がHigh Riskを出した場合、Orchestratorは実行を止める
+
+
+4. 通信フロー
+-------------
+Phase 1: 初期化（Orchestrator）
+  - ユーザー目的の受け取り（GitHub Issue）
+  - 仮説・タスクへの分解
+  - Agent割当の決定
+
+Phase 2: 並列探索（Scout / Quality / Analyst / Builder / Governance が独立稼働）
+  - Scout         → data_map.txt + grain_notes.txt
+  - Quality       → data_contract.yaml + data_quality_plan.txt
+  - Analyst       → eda_plan.txt + hypothesis_log.txt（仮説ペアで）
+  - Builder       → transform_blueprint.txt
+  - Governance    → PIIリスク分類表 + 承認マトリックス（独立評価）
+
+Phase 3: 統合（Orchestrator）
+  - 各Agentの成果物を収集する
+  - 矛盾・競合を解消する
+  - Governance のサインオフを確認する
+  - 最終アウトプットを生成する
+
+Phase 4: 人間のレビューと承認
+  - PRで成果物をレビューする
+  - 実行が必要な操作はL2/L3承認後に人間が実施する
+  - フィードバックを80-improve → 00-intakeへ記録する
+
+
+5. トークン消費前提
+-------------------
+- 各Agentのコンテキストウィンドウは独立させ、全履歴を共有しない
+- Orchestratorへの報告は要約形式（詳細は別ファイルに保存）
+- 並列探索は「本当に多角的な視点が必要なタスク」に限定する
+- 単純なタスク（SQL1本の生成等）はAgentを使わずSkillを直接呼ぶ
+
+
+6. 並列化の型
+-------------
+型1: 仮説A/Bを別Agentで走らせる
+  - Analyst AgentがH1・H2を独立して担当
+  - OrchestratorがH1/H2の結果を統合する
+
+型2: 監査/ガバナンスの並列独立レビュー
+  - Builder・Analyst・MLが生成フェーズを並列実行
+  - 同時にGovernance Agentが全成果物を独立レビュー
+  - OrchestratorがGovernanceのサインオフを確認してから次フェーズへ
+
+型3: EDA × 変換設計の並列化
+  - Analyst（EDA）と Builder（変換設計）を同時に走らせる
+  - 両者の出力をOrchestratorが統合し、矛盾を解消する
+
+
+7. 誤収束防止設計
+-----------------
+(1) 独立コンテキスト:
+    - 各Agentは他Agentの中間結果を見ない（思考汚染防止）
+
+(2) 反証義務化:
+    - 各Agentは「この提案が誤りうる条件」を必ず1つ以上記載する
+    - Analystは楽観仮説と反証仮説のペアを必ず出力する
+
+(3) Governance独立評価:
+    - 他のAgentが「安全」と判断した場合でも独自にリスク評価する
+
+(4) 最終確認の人間介在:
+    - 「実行してよいか？」の判断は常に人間が行う
+    - Claudeは「設計・提案」はするが「決定・実行」はしない
+
+
+8. 将来の拡張計画
+-----------------
+P1（MCP連携後）:
+  - Scout AgentがS3 Read-only MCPを通じてメタデータを自律取得
+  - Quality AgentがGlue Catalogから実スキーマを自動同期
+  - CI連携AgentがPRマージ時にスキーマ変更を自動検出・報告
+
+P2（承認付き実行連携後）:
+  - Operator AgentがAthena Read-only MCPでクエリ実行（コスト上限付き）
+  - Reporter AgentがBI連携でレポートを自動生成
+
+==============================================================

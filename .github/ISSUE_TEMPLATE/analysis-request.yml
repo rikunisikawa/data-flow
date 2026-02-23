@@ -1,0 +1,143 @@
+name: "分析依頼 / Analysis Request"
+description: "データ分析プロジェクトの新規依頼テンプレート。Claude Agent Teamが受け取り、分析ライフサイクルを進める。"
+title: "[Analysis] "
+labels: ["analysis-request", "ai-lifecycle"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 分析依頼フォーム
+        このIssueはClaude Agent Teamが受け取り、`docs/artifacts/<YYYYMMDD>_<slug>/` に設計ドキュメントを生成します。
+        **実データへのアクセス・実行は行いません。設計・生成のみです。**
+
+  - type: input
+    id: slug
+    attributes:
+      label: "識別子 (slug)"
+      description: "英数字とハイフンのみ。例: medication-kpi, sensor-drift-2026q1"
+      placeholder: "my-analysis-topic"
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: "分析の問い"
+      description: "この分析で答えたい問いを1〜3文で記述してください。"
+      placeholder: |
+        例: mHealthセンサーデータにおいて、活動ラベルごとのECG値に有意な差はあるか？
+        この分析で活動分類モデルの特徴量選定の意思決定を行いたい。
+    validations:
+      required: true
+
+  - type: textarea
+    id: decision
+    attributes:
+      label: "この分析で下す意思決定"
+      description: "分析結果を使って何を決定しますか？"
+      placeholder: "例: 特徴量エンジニアリングの方針（ECGを使うか/使わないか）を決定する"
+    validations:
+      required: true
+
+  - type: textarea
+    id: kpi
+    attributes:
+      label: "KPI / 成功条件"
+      description: "この分析が成功したと判断できる条件を列挙してください。"
+      placeholder: |
+        - 活動ラベル分類精度 >= 90%
+        - 分析レポートをステークホルダーが承認した
+        - データ品質チェックをパスした
+    validations:
+      required: true
+
+  - type: input
+    id: deadline
+    attributes:
+      label: "期限"
+      description: "最終納品期限（YYYY-MM-DD形式）"
+      placeholder: "2026-03-31"
+    validations:
+      required: true
+
+  - type: input
+    id: audience
+    attributes:
+      label: "報告対象（Audience）"
+      description: "誰に報告しますか？"
+      placeholder: "例: プロダクトマネージャー、経営陣"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sensitivity
+    attributes:
+      label: "機密区分"
+      description: "このデータ・分析結果の機密レベルを選択してください。"
+      options:
+        - "public（公開可）"
+        - "internal（社内限定）"
+        - "confidential（部門内限定）"
+        - "restricted（要個別承認）"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: pii
+    attributes:
+      label: "PII含有の可能性"
+      description: "個人情報・生体情報（ECG等）が含まれる可能性はありますか？"
+      options:
+        - "なし"
+        - "可能性あり（詳細は下記に記載）"
+        - "含まれる（詳細は下記に記載）"
+        - "不明"
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: "既知の制約"
+      description: "データ制限・コスト上限・ツール制限・アクセス権限など。"
+      placeholder: |
+        - サンプル取得は1000行以内に制限
+        - ECGデータはL2承認なしに分析不可
+        - Athenaクエリは $10/回 以下
+        - 使用可能なS3パス: s3://aws-data-platform-20250607/stage/ のみ
+    validations:
+      required: false
+
+  - type: textarea
+    id: known_data
+    attributes:
+      label: "既知のデータソース"
+      description: "使えると思っているデータソースがあれば記載してください（プレースホルダで可）。"
+      placeholder: |
+        - s3://aws-data-platform-20250607/stage/ （Parquet形式）
+        - Glue Catalog: mhealth_processed テーブル
+    validations:
+      required: false
+
+  - type: textarea
+    id: past_analysis
+    attributes:
+      label: "過去の関連分析"
+      description: "同じ問いで過去に分析した資料があれば参照先を記載してください。"
+      placeholder: "例: docs/artifacts/20260101_prev-analysis/ を参照"
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## 次のステップ
+        このIssueを作成すると、Claudeが以下を自動生成します（実行はしません）:
+        1. `docs/artifacts/<YYYYMMDD>_<slug>/analysis_charter.txt`
+        2. `docs/artifacts/<YYYYMMDD>_<slug>/wbs.txt`
+        3. `docs/artifacts/<YYYYMMDD>_<slug>/constraints.txt`
+
+        成果物はPRでレビューしてから次のフェーズ（Discover → Contract → EDA → Report）に進みます。

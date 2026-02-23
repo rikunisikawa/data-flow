@@ -1,0 +1,218 @@
+==============================================================
+Claude Agent Playbook — 分析ライフサイクル全自動化運用手順書
+プロジェクト: AWS Serverless Data Platform (mHealth ETL)
+バージョン: 2.0.0
+対象読者: データエンジニア、MLエンジニア、プラットフォームSRE
+==============================================================
+
+このPlaybookはGitHub Issueを起点に、Agent Teamが
+「分析ライフサイクル（受付→発見→品質→変換→EDA→レポート→運用→改善）」を
+設計・生成で回すための標準手順を定める。
+
+前提: 生成は自動OK。実行（クエリ実行/ジョブ起動/配布）はすべて承認ゲート必須。
+
+
+1. 基本原則
+-----------
+(1) 生成と実行の分離
+    - Claudeは設計・SQLの生成・ドキュメントのテンプレート作成を担う
+    - 実行は必ず人間が確認してから行う
+    - CI/CDパイプラインへの自動実行組み込みは別途L3承認を経ること
+
+(2) すべての成果物はGitで管理する
+    - artifacts/<YYYYMMDD>_<slug>/ 以下にすべてをコミットする
+    - 「口頭での結論」はNG。必ずファイルに記録する
+
+(3) Governance Agentは常に独立評価する
+    - 他のAgentが「問題ない」と言っても、Governance AgentはPIIリスクを
+      独立して評価する。Governance のサインオフなしに実行には進まない
+
+(4) 反証を必ず含める
+    - 仮説は「楽観仮説 + 反証仮説」のペアで出力する
+
+(5) 毎回「実行禁止」を明記する
+    - 各AgentへのタスクにはNE「実行禁止: 生成のみ」を記載する
+    - これはLLMのコンテキスト忘れに備えたガードである
+
+(6) 最小権限の原則
+    - Claudeに与えるS3アクセスは読み取り専用
+    - 書き込み・削除・ジョブ起動権限は付与しない
+    - secrets（APIキー等）はコンテキストに含めない
+
+
+2. セッション開始手順
+----------------------
+Step 1: 依頼の確認
+  GitHub Issueが .github/ISSUE_TEMPLATE/analysis-request.yml
+  テンプレートで作成されていることを確認する。
+
+Step 2: slugとdateを決める
+  - slug: 依頼の短縮識別子（英数字ハイフン。例: sensor-drift-2026q1）
+  - date: 依頼受付日（YYYYMMDD。例: 20260223）
+
+Step 3: OrchestratorへIssue内容を渡す
+  下記「コピペ用指示テンプレート」をClaudeに入力する。
+
+Step 4: Agent Team構成の確認
+  OrchestratorがAgent Team構成を提示したら承認してから実行開始する。
+
+Step 5: 各Stepの成果物をレビューする
+  各Skillの出力ファイルをレビューして次Stepに進むか判断する。
+
+
+3. コピペ用指示テンプレート（Issue起点）
+-----------------------------------------
+
+--------------------------------------------------------------
+【Orchestrator起動指示】
+--------------------------------------------------------------
+以下のGitHub Issue内容を元に分析ライフサイクルを進めてください。
+
+slug:      [英数字ハイフン]
+date:      [YYYYMMDD]
+問い:      [Issue本文から転記]
+KPI:       [Issue本文から転記]
+期限:      [YYYY-MM-DD]
+機密区分:  [public / internal / confidential / restricted]
+制約:      [Issue本文から転記]
+
+指示:
+1. 00-intake Skillを使い以下を生成してください:
+   docs/artifacts/[DATE]_[SLUG]/analysis_charter.txt
+   docs/artifacts/[DATE]_[SLUG]/wbs.txt
+   docs/artifacts/[DATE]_[SLUG]/constraints.txt
+2. Agent Team構成を提示してください
+
+実行禁止: 生成・設計のみ。データアクセス・実行・配布は行わない。
+secrets禁止: APIキー・パスワード・テーブル実名を成果物に含めない。
+
+--------------------------------------------------------------
+【Scout Agent指示】
+--------------------------------------------------------------
+[Scout]: データ所在マップを生成してください。
+参照: docs/artifacts/[DATE]_[SLUG]/analysis_charter.txt
+既知ソース: [list] / 対象期間: [date_range]
+実行禁止: 実データアクセス・クエリ実行
+出力: docs/artifacts/[DATE]_[SLUG]/data_map.txt
+     docs/artifacts/[DATE]_[SLUG]/grain_notes.txt
+
+--------------------------------------------------------------
+【Quality Agent指示】
+--------------------------------------------------------------
+[Quality]: データ契約と品質計画を生成してください。
+参照: docs/artifacts/[DATE]_[SLUG]/data_map.txt
+テーブル: [table_list] / NULL方針: [policy] / PII候補: [list or TBD]
+実行禁止: DDL/DML実行・実データアクセス
+出力: docs/artifacts/[DATE]_[SLUG]/data_contract.yaml
+     docs/artifacts/[DATE]_[SLUG]/data_quality_plan.txt
+
+--------------------------------------------------------------
+【Analyst Agent指示】
+--------------------------------------------------------------
+[Analyst]: EDA計画と仮説リストを生成してください。
+参照: docs/artifacts/[DATE]_[SLUG]/data_contract.yaml
+ターゲット: [target] / サンプル上限: 1000行
+必須: 各仮説は「楽観仮説 + 反証仮説」のペアで出力すること
+実行禁止: 大規模データ読み込み・クエリ実行
+出力: docs/artifacts/[DATE]_[SLUG]/eda_plan.txt
+     docs/artifacts/[DATE]_[SLUG]/hypothesis_log.txt
+
+--------------------------------------------------------------
+【Governance Agent指示】
+--------------------------------------------------------------
+[Governance]: PIIリスクを独立評価してください。
+参照: docs/artifacts/[DATE]_[SLUG]/data_contract.yaml
+注意: 他Agentの評価結果を参照せず独立して判断すること
+実行禁止: 実データアクセス
+出力: PIIリスク分類表（Low/Medium/High/Critical）
+     承認レベル（L1/L2/L3） / マスキング方針推奨
+
+--------------------------------------------------------------
+【Builder Agent指示】
+--------------------------------------------------------------
+[Builder]: 変換設計書を生成してください。
+参照: docs/artifacts/[DATE]_[SLUG]/data_contract.yaml
+変換元: [source] / 変換先: [target] / ステップ概要: [steps]
+実行禁止: ETL実行・書き込み
+出力: docs/artifacts/[DATE]_[SLUG]/transform_blueprint.txt
+
+--------------------------------------------------------------
+【Reporter Agent指示】
+--------------------------------------------------------------
+[Reporter]: レポート設計書とエグゼクティブサマリーを生成してください。
+参照: docs/artifacts/[DATE]_[SLUG]/hypothesis_log.txt
+     docs/artifacts/[DATE]_[SLUG]/eda_plan.txt
+報告対象: [audience] / 機密区分: [sensitivity]
+実行禁止: 配布・外部送信（配布はL3承認後に人間が実施）
+出力: docs/artifacts/[DATE]_[SLUG]/report_outline.txt
+     docs/artifacts/[DATE]_[SLUG]/executive_summary.txt
+
+--------------------------------------------------------------
+【Operator Agent指示】
+--------------------------------------------------------------
+[Operator]: 運用設計書を生成してください。
+参照: docs/artifacts/[DATE]_[SLUG]/transform_blueprint.txt
+パイプライン名: [name] / SLO目標（仮値OK）: 可用性[TBD]% / 鮮度[TBD]h
+実行禁止: 監視設定の適用・アラート発報
+出力: docs/artifacts/[DATE]_[SLUG]/monitoring_plan.txt
+     docs/artifacts/[DATE]_[SLUG]/slos_slis.txt
+     docs/artifacts/[DATE]_[SLUG]/runbook_incident.txt
+
+
+4. 承認ゲート早見表
+--------------------
+L1（生成のみ）: 自動OK
+  - 設計書・契約書・計画書の生成 / PRの作成
+
+L2（読み取り実行）: エンジニア確認後OK
+  - 小サンプルのS3ダウンロード
+  - Athena LIMIT付きクエリ実行
+  - dbt compile（実行なし）
+
+L3（副作用あり）: データオーナーと責任者の承認必須
+  - S3への書き込み / ETL実行 / dbt run
+  - モデルのデプロイ
+  - レポートの配布（メール・Slack）
+  - スキーマ変更（CREATE/ALTER）
+
+
+5. よくあるユースケース
+------------------------
+UC-1: 新しいデータソースの追加設計
+  フロー: 00-intake → 10-discover → 20-contract-quality → Governance独立評価
+  出力: analysis_charter.txt + data_map.txt + data_contract.yaml + PIIリスク評価
+
+UC-2: 分析クエリの設計
+  フロー: 20-contract-quality → 40-eda（仮説設計）→ sql-generator（SQL生成）
+  出力: data_contract.yaml + hypothesis_log.txt + SQL草案
+
+UC-3: 分析ライフサイクル全体（Issue起点）
+  フロー: 00〜80 の全フェーズをOrchestratorがAgent Teamで進める
+  出力: artifacts/<DATE>_<SLUG>/ 以下の全成果物
+
+UC-4: 運用中の障害対応設計
+  フロー: Operator Agent → runbook_incident.txt を参照して修正案PRを生成
+  出力: 修正案PR（[要L3承認]ラベル付き）
+
+UC-5: 定期レポート更新
+  フロー: Reporter Agent → executive_summary.txt を更新してPR作成
+  出力: 更新済みexecutive_summary.txt（配布はL3承認後）
+
+
+6. エスカレーション基準
+------------------------
+以下の場合は必ず人間がレビューしてから次へ進む:
+- ECGデータ等の生体情報を含む分析
+- 外部公開・社外共有を含む設計
+- IAMポリシー変更を伴う設計
+- Athenaクエリコスト見積もりが $10/回 超
+- Governance AgentがHigh/Criticalのリスクを検出した場合
+
+
+7. 更新ルール
+--------------
+- このPlaybookはGitで管理する
+- 変更はPRレビューを経て反映する
+- 四半期ごとにレビューし、最新のSkill/Agent設計と整合させる
+
+==============================================================

@@ -1,0 +1,88 @@
+# ==============================================================
+# Data Contract — データ契約
+# ==============================================================
+# 依頼識別子: [SLUG]
+# 作成日: [DATE]
+# バージョン: 1.0.0
+# 注意: このファイルはDDL/DML実行のためではなく、
+#       設計合意と将来のテスト自動化のベースとして使用する。
+# ==============================================================
+
+contract:
+  name: "[CONTRACT_NAME]"
+  version: "1.0.0"
+  owner: "[OWNER_TEAM]"
+  created: "[YYYY-MM-DD]"
+  sla:
+    freshness: "[例: 24時間以内に更新]"
+    availability: "[例: 99.5%]"
+
+tables:
+  - name: "[table_name_a]"
+    description: "[テーブルの説明]"
+    location: "[s3://bucket/path/ または db.schema.table]"
+    format: "[parquet / csv / json]"
+    grain: "[1レコード = ...]"
+    partition_keys:
+      - "[partition_col]"
+
+    columns:
+      - name: "[col_1]"
+        type: "[BIGINT / DOUBLE / STRING / BOOLEAN / DATE]"
+        nullable: false
+        description: "[カラムの説明]"
+        constraints:
+          range: "[TBD または 例: 0〜12]"
+          regex: "[TBD]"
+          enum: []
+        pii: false
+
+      - name: "[col_2]"
+        type: "[DOUBLE]"
+        nullable: true
+        description: "[カラムの説明]"
+        constraints:
+          range: "[TBD]"
+        pii: false
+
+      - name: "[pii_col]"
+        type: "[STRING]"
+        nullable: false
+        description: "[PII疑いカラムの説明]"
+        pii: true
+        pii_level: "[medium / high]"
+        masking_policy: "[hash / null / TBD]"
+
+    quality_rules:
+      - rule: "primary_key_unique"
+        columns: ["[col_1]"]
+        severity: "critical"
+
+      - rule: "not_null"
+        columns: ["[col_1]"]
+        severity: "critical"
+
+      - rule: "value_range"
+        column: "[col_2]"
+        min: "[TBD]"
+        max: "[TBD]"
+        severity: "warning"
+
+      - rule: "freshness"
+        column: "[timestamp_col]"
+        max_age_hours: 24
+        severity: "critical"
+
+  - name: "[table_name_b]"
+    description: "[TBD]"
+    location: "[TBD]"
+    format: "[TBD]"
+    grain: "[TBD]"
+    columns: []
+    quality_rules: []
+
+approval:
+  reviewed_by: "[REVIEWER]"
+  approved_by: "[APPROVER]"
+  approved_at: "[YYYY-MM-DD]"
+  notes: "[承認メモ]"

@@ -1,0 +1,47 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "match": "\\b(rm|delete|drop|truncate|destroy|apply|purge|wipe|format)\\b",
+        "action": "block",
+        "message": "[BLOCKED] 破壊系操作は禁止です。今回は枠組み生成のみ。実行は承認ゲート（L3）を経てから手動で行ってください。"
+      },
+      {
+        "match": "\\b(run|start|execute|deploy|publish|invoke|trigger|launch|boot)\\b",
+        "action": "block",
+        "message": "[BLOCKED] 実行系操作は禁止です。生成・設計のみ許可。実行はL2/L3承認後に人間が行ってください。"
+      },
+      {
+        "match": "\\b(curl|wget|scp|rsync|sftp|ftp|mail|sendmail|slack|webhook|http|https)\\b",
+        "action": "block",
+        "message": "[BLOCKED] ネットワーク/外部送信操作は禁止です。データの外部送出はL3承認が必要です。"
+      },
+      {
+        "match": "git\\s+(push|merge|tag|release|branch\\s+-[dD])",
+        "action": "block",
+        "message": "[BLOCKED] git push/merge/tag/release は手動で行ってください。自動push・自動mergeは禁止です。"
+      },
+      {
+        "match": "\\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|CREATE\\s+TABLE|GRANT|REVOKE)\\b",
+        "action": "block",
+        "message": "[BLOCKED] DML/DDL実行は禁止です。SQLは生成のみ。実行はL2/L3承認後に人間が行ってください。"
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Write",
+      "Edit",
+      "TodoWrite"
+    ],
+    "deny": []
+  },
+  "notes": {
+    "lifecycle": "L1=生成のみ(自動OK) / L2=読み取り実行(条件付き) / L3=副作用あり(承認必須)",
+    "exceptions": "例外が必要な場合はdocs/governance-and-safety.txtの承認フローを参照してください。",
+    "secrets": "secrets(APIキー/トークン/パスワード/URL/アカウントID)をコンテキストに含めないこと。"
+  }
+}
