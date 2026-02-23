@@ -1,0 +1,21 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "match": "apply|destroy|delete|rm",
+        "action": "block",
+        "message": "破壊系操作は禁止。"
+      },
+      {
+        "match": "start|run|execute",
+        "action": "block",
+        "message": "実行系操作は禁止。"
+      },
+      {
+        "match": "push|merge",
+        "action": "block",
+        "message": "push/mergeは手動で行うこと。"
+      }
+    ]
+  }
+}

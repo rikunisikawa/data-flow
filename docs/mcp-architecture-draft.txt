@@ -1,0 +1,132 @@
+==============================================================
+MCP (Model Context Protocol) Architecture Draft
+プロジェクト: AWS Serverless Data Platform (mHealth ETL)
+ステータス: 設計草案（未実装）
+対象フェーズ: P1以降
+==============================================================
+
+注意: 本ドキュメントはMCPの設計方針を記述したものであり、
+      現時点では実装を行わない。P1フェーズで段階的に実装する。
+
+
+1. MCPの役割
+-------------
+MCPはClaudeと外部システム（S3, Glue, Athena等）を接続する
+抽象化レイヤーとして機能する。
+
+目的:
+  - Claudeが必要な情報へ安全にアクセスできる接続口を提供する
+  - 権限管理とアクセス制御を一元化する
+  - 将来的なシステム変更に対するClaudeのコードの影響を最小化する
+
+
+2. 設計方針
+-----------
+(1) 読み取り専用MCPを優先
+    - 読み取り専用のMCPから先に実装する
+    - 書き込み系MCPは別スコープとして厳格に管理する
+    - "read MCP" と "write MCP" を明確に分離する
+
+(2) OAuthスコープ分離
+    - 読み取りスコープ: s3:GetObject, glue:GetTable, athena:GetQueryResults
+    - 書き込みスコープ: s3:PutObject, glue:CreateTable 等（別MCPで管理）
+    - スコープはIAMポリシーレベルで強制する
+
+(3) 許可リスト型運用
+    - アクセス可能なS3パスを明示的な許可リストで制限する
+    - 許可リスト外へのアクセスは自動ブロック
+    - 許可リストの変更はPRレビューを必須とする
+
+(4) 監査ログの必須化
+    - 全MCPアクセスをCloudTrailまたはS3アクセスログで記録する
+    - ログは90日以上保持する
+    - 異常アクセスのアラートを設定する
+
+(5) DLPチェック
+    - MCPが返却するデータにDLP（Data Loss Prevention）チェックを実施する
+    - PIIが含まれる場合は自動マスキングまたは返却拒否を行う
+
+
+3. 計画するMCPサーバー構成
+----------------------------
+以下はP1以降での実装計画（現時点では未実装）:
+
+[MCP-1] s3-readonly-mcp
+  接続先: AWS S3
+  許可操作:
+    - s3:ListBucket (許可パスのみ)
+    - s3:GetObject (許可パスのみ: /stage/, /processed/ のみ)
+  禁止操作:
+    - s3:PutObject, s3:DeleteObject, s3:DeleteBucket 等すべての書き込み
+  許可パス:
+    - s3://aws-data-platform-20250607/stage/
+    - s3://aws-data-platform-20250607/processed/
+  禁止パス:
+    - s3://aws-data-platform-20250607/raw/ (生データへの直接アクセスは禁止)
+  DLPポリシー:
+    - ecg_lead1, ecg_lead2 カラムを含む場合は返却前にマスキング
+
+[MCP-2] glue-catalog-readonly-mcp
+  接続先: AWS Glue Data Catalog
+  許可操作:
+    - glue:GetDatabase
+    - glue:GetTable
+    - glue:GetTables
+    - glue:GetPartitions
+  禁止操作:
+    - glue:CreateTable, glue:DeleteTable, glue:UpdateTable 等
+
+[MCP-3] athena-query-mcp (将来P2で検討)
+  接続先: AWS Athena
+  許可操作:
+    - athena:StartQueryExecution (読み取りのみのSELECT文に限定)
+    - athena:GetQueryResults
+    - athena:StopQueryExecution
+  コスト制御:
+    - Workgroupで最大スキャンサイズを 1GB に制限
+    - 単一クエリのコスト上限: $5
+    - DMLは実行前に自動ブロック
+
+
+4. セキュリティ要件
+-------------------
+(1) 認証・認可
+    - MCPサーバーはIAMロールで認証する（アクセスキー直書きは禁止）
+    - IAMロールは最小権限原則に基づいて定義する
+    - ロールのassume-roleはMCPサーバーからのみ許可する
+
+(2) ネットワーク
+    - MCPサーバーはVPC内に配置する
+    - インターネットへの直接アクセスは禁止
+    - VPCエンドポイント経由でS3/Glue/Athenaにアクセスする
+
+(3) 暗号化
+    - 通信はすべてTLS 1.2以上
+    - S3データはSSE-S3またはSSE-KMSで暗号化
+    - MCPとClaudeの通信内容はログに記録しない（プライバシー保護）
+
+(4) シークレット管理
+    - API Key等のsecretはAWS Secrets Managerで管理する
+    - コード・設定ファイル・Gitリポジトリへのsecret埋め込みは禁止
+    - secretのローテーションは90日以内に実施する
+
+
+5. 実装スケジュール（計画）
+----------------------------
+P1フェーズ（読み取り系MCPの実装）:
+  - [ ] s3-readonly-mcp の設計書作成
+  - [ ] IAMポリシーの定義
+  - [ ] 許可リストの確定
+  - [ ] MCPサーバーの実装（AWS Lambda + API Gateway想定）
+  - [ ] DLPチェック機能の実装
+  - [ ] 監査ログの設定
+  - [ ] ペネトレーションテストの実施
+  - [ ] 本番適用
+
+P2フェーズ（書き込み系MCP・Athena連携）:
+  - [ ] athena-query-mcp の設計書作成
+  - [ ] コスト制御機能の設計
+  - [ ] Workgroup設定の確定
+  - [ ] 実装・テスト・本番適用
+
+==============================================================

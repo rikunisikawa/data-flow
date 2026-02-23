@@ -1,0 +1,101 @@
+==============================================================
+Claude Agent Playbook
+プロジェクト: AWS Serverless Data Platform (mHealth ETL)
+対象読者: データエンジニア、MLエンジニア、プラットフォームSRE
+==============================================================
+
+1. このPlaybookの目的
+----------------------
+Claude Code の Skills / MCP / Agent Teams を活用して、
+mHealthデータ基盤の設計・分析・ガバナンス業務を
+安全かつ再現性高く遂行するための標準手順を定める。
+
+実データ操作・実インフラ変更は本Playbookの対象外。
+あくまで「設計・生成・検証」フェーズのみを扱う。
+
+
+2. 基本原則
+-----------
+(1) 生成と実行の分離
+    - Claudeは設計・SQLの生成・ノートブックのテンプレート作成を担う
+    - 実行は必ず人間が確認してから行う
+    - CI/CDパイプラインへの自動組み込みは別途承認プロセスを経ること
+
+(2) 最小権限の原則
+    - Claudeに与えるS3アクセスは読み取り専用
+    - 書き込み・削除・ジョブ起動権限は付与しない
+    - secrets（API Key等）はコンテキストに含めない
+
+(3) 破壊的操作のブロック
+    - .claude/settings.json の PreToolUse hooks で
+      apply/destroy/delete/rm/start/run/execute/push/merge を自動ブロック
+    - ブロックされた場合は人間が手動で判断・実行する
+
+(4) 監査可能性の確保
+    - Claude が生成したSQL・設計書はすべてGitで管理する
+    - 変更履歴は commit message で追跡可能にする
+
+
+3. セッション開始手順
+----------------------
+Step 1: 目的の明確化
+  - 今回のセッションで何を設計・生成するかをOrchestratorに伝える
+  - 例: "mHealthデータのEDA設計とAthenaSQLの生成を行いたい"
+
+Step 2: 関連Skillの確認
+  - data-intake       : データ所在確認が必要な場合
+  - schema-contract   : スキーマ定義が必要な場合
+  - sql-generator     : AthenaSQL生成が必要な場合
+  - eda-notebook      : EDAテンプレート生成が必要な場合
+  - data-governance-guard : PIIリスク評価が必要な場合
+
+Step 3: Agent Team構成の決定
+  - 単純なタスク: Skillを直接呼び出す
+  - 複合タスク:   Agent Team（Orchestrator + 複数Agent）を編成する
+
+Step 4: 成果物の確認と保存
+  - 生成された設計書・SQL・ノートブックをレビューする
+  - 問題がなければdocs/またはnotebooks/に保存する
+  - Gitにコミットして変更を記録する
+
+
+4. よくあるユースケース
+------------------------
+UC-1: 新しいデータソースの追加設計
+  使用スキル: data-intake → schema-contract → data-governance-guard
+  出力: データ所在マップ + スキーマ契約書 + PIIリスク評価
+
+UC-2: 分析クエリの設計
+  使用スキル: schema-contract → sql-generator
+  出力: 説明責任付きAthena SQL + コスト見積もりコメント
+
+UC-3: 探索的データ分析の準備
+  使用スキル: data-intake → eda-notebook → sql-generator
+  出力: EDAノートブックテンプレート + 分析仮説リスト + 検証SQL
+
+UC-4: データ品質チェックの設計
+  使用スキル: schema-contract → sql-generator
+  出力: 整合性チェックSQL + 品質レポートテンプレート
+
+UC-5: コンプライアンス監査の準備
+  使用スキル: data-governance-guard → schema-contract
+  出力: PIIリスク分類表 + 承認マトリックス + マスキング方針
+
+
+5. エスカレーション基準
+------------------------
+以下の場合は必ず人間がレビューしてから進める:
+- ECGデータ（生体情報）を含む処理設計
+- 外部公開・共有を前提としたデータ利用
+- IAMポリシーの変更を伴う設計
+- 新しいS3バケットやGlue Catalogテーブルの作成設計
+- コスト見積もりが $10/クエリ を超える場合
+
+
+6. 更新ルール
+--------------
+- このPlaybookはGitで管理する
+- 変更はPRレビューを経て反映する
+- 四半期ごとにレビューし、最新のSkill/Agent設計と整合させる
+
+==============================================================
