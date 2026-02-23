@@ -1,0 +1,89 @@
+==============================================================
+Current State Summary
+リポジトリ: rikunisikawa/data-flow
+調査日: 2026-02-23
+==============================================================
+
+## 既存のディレクトリ構造（主要フォルダ）
+
+- /download_and_upload/     Lambda①: Kaggle → S3/raw/ へダウンロード
+- /convert_log_to_parquet/  Lambda②: ログ/CSV → Parquet変換 → S3/stage/
+- /glue_job/                AWS Glue Job: スキーマ正規化 → S3/processed/
+- /layer/                   Lambda Layer（共有依存パッケージ）
+- /data_flow_dbt/           dbt プロジェクト（変換・モデル管理）
+- /dbt_profiles/            dbt 接続プロファイル
+- /notebooks/               Jupyter Notebooks（EDA用）
+- /terraform/               Terraform IaC（インフラ定義）
+- /docker/                  Docker 設定
+- /state_machine/           AWS Step Functions 定義
+- /templates/               SAM/CloudFormation テンプレ
+- /scripts/                 ユーティリティスクリプト
+- /tests/                   ユニットテスト（pytest）
+- /specs/                   仕様書（8件以上のmarkdown）
+- /agent-skills/            既存のAgentスキル定義
+- /ai-doc/                  AI生成ドキュメント群
+- /memory/                  セッションメモリ/状態ファイル
+- /logs/                    アプリケーションログ
+- /docs/                    設計・計画ドキュメント（本リポジトリ追加分）
+- /.claude/                 Claude Code 設定・Skills
+
+## 既存の実行フロー
+
+- Lambda①→②→Glue の順でETL処理（SAM管理）
+- Step Functions: パイプライン全体のオーケストレーション（定義存在）
+- Terraform: インフラのプロビジョニング（dev/prod 分離）
+- dbt: データ変換モデル管理（Glue 後工程想定）
+
+## CI/CD
+
+- .github/workflows/auto-pr.yml           Issueを起点にAIが自動PR作成
+- .github/workflows/terraform-deploy-pr-dev.yml  Terraform dev環境へのPR時適用
+- .github/workflows/terraform-deploy.yml  Terraform 本番デプロイ（mainマージ時）
+
+## テスト/品質チェック
+
+- tests/test_download_and_upload.py     Lambda①のユニットテスト（pytest）
+- tests/test_convert_log_to_parquet.py  Lambda②のユニットテスト（pytest）
+- tests/requirements.txt               テスト依存パッケージ
+- data_flow_dbt/tests/                 dbtテスト（現在空）
+- lintツール設定なし（pyproject.toml/.flake8/.pylintrc 未検出）
+
+## 既存のドキュメント規約
+
+- README.md            プロジェクト概要・アーキテクチャ説明
+- CLAUDE.md            Claude Code 向け作業指示（checkedin）
+- AGENTS.md            Agentフレームワーク向け指示
+- GEMINI.md            Gemini CLI 向け指示
+- ai-doc/README.md     AI生成ドキュメントの概要
+- specs/               仕様書群（複数 Markdown）
+- notebooks/README.md  Notebooks の利用方針
+
+## 既存 .claude/ 設定
+
+- .claude/settings.json                     PreToolUse hooks（破壊系/実行系をブロック、前タスクで作成）
+- .claude/skills/data-intake/SKILL.md       データ所在マップ生成スキル
+- .claude/skills/schema-contract/SKILL.md   スキーマ契約書生成スキル
+- .claude/skills/sql-generator/SKILL.md     AthenaSQL生成スキル
+- .claude/skills/eda-notebook/SKILL.md      EDAノートブックテンプレ生成スキル
+- .claude/skills/data-governance-guard/SKILL.md PIIリスク評価スキル
+
+## 統合方針（競合回避）
+
+- 既存 .claude/skills/ 配下の5スキル（data-intake等）は削除せず残存させる
+  → 新スキル（00-intake 〜 80-improve）と名前空間が異なるため競合なし
+- 既存 docs/ 配下の4ファイル（claude-agent-playbook.txt等）は残存させる
+  → 新ファイルと重複する場合は新ファイルを「拡張版」として位置付ける
+- 既存 .github/workflows/ は変更しない
+  → 新規 ai-lifecycle-check.yml を追加するのみ
+
+## テクノロジースタック推定（参考）
+
+- クラウド:   AWS（Lambda / Glue / S3 / Athena / Step Functions）
+- IaC:        Terraform + SAM
+- 変換:       dbt + Python (pandas / pyarrow)
+- データ形式: Parquet (stage/processed), CSV/log (raw)
+- クエリ:     Athena (Presto互換)
+- 言語:       Python 3.x
+- テスト:     pytest
+
+==============================================================

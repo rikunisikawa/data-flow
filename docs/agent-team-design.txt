@@ -1,183 +1,206 @@
 ==============================================================
-Agent Team Design
+Agent Team Design — エージェントチーム設計書
 プロジェクト: AWS Serverless Data Platform (mHealth ETL)
-バージョン: 1.0.0
-最終更新: 2026-02-23
+バージョン: 2.0.0（分析ライフサイクル全自動化対応版）
 ==============================================================
 
 1. Agent Teamsの導入目的
 -------------------------
-mHealthデータ基盤において、以下の複合的な探索タスクを
-並列化・分業化することで品質と速度を向上させる:
+mHealthデータ基盤において、分析ライフサイクル全体（受付→発見→品質→変換→
+EDA→レポート→運用→改善）を並列・分業で処理するために導入する。
 
-- データ理解の多角的探索（品質/EDA/ガバナンス/特徴量の同時進行）
-- 単一Agentでは見落としがちな観点の網羅的なカバー
-- 各Agentが独立コンテキストで動作することによる思考の汚染防止
+目的:
+  - 単一Agentでは見落としがちな観点（ガバナンス・品質・リーク等）を網羅する
+  - 各Agentが独立コンテキストで動作し、思考汚染を防ぐ
+  - 「反証タスク」を必ず含めてアンカリング・楽観バイアスを回避する
 
 前提: 実行系は禁止。設計・生成・検証のみ。
-      破壊系操作は .claude/settings.json の hooks で自動ブロック。
+      .claude/settings.json の hooks で破壊系/実行系を自動ブロック。
 
 
 2. Agent構成と責務
 ------------------
 
-[Agent 0] Orchestrator（Leader）
+[Agent 0] Orchestrator（統合・判断・最終決定）
   役割:
-    - ユーザーの目的を整理し、仮説に分解する
-    - 各Agentへのタスク割当を行う
-    - 各Agentの成果物を統合し、最終アウトプットを生成する
-    - 矛盾する結論を調停する（最終判断はOrchestratorのみが行う）
-  独立性:
-    - 他のAgentの中間結果には直接アクセスしない
-    - 各Agentの完了報告を受けてから統合を開始する
-  禁止事項:
-    - 実行系操作の委任（他のAgentに対しても実行を命じない）
-    - 未確認の仮説を確定的な結論として扱う
+    - ユーザーの依頼（Issue）を分析し、仮説と問いに分解する
+    - 各Agentへのタスクを割り当て・優先度を設定する
+    - 各Agentの「根拠付き提案」を統合し、矛盾を調停する
+    - 最終アウトプットを生成し、PRを作成する
+    - 80-improve → 00-intake のフィードバックを記録する
+  重要制約:
+    - 最終判断はOrchestratorのみが行う（各Agentは提案のみ）
+    - Governance Agentが「高リスク」を出した場合は実行に進まない
 
-[Agent 1] Data Intake Agent
+[Agent 1] Scout（データ発見・所在マッピング）
   役割:
-    - データの所在を整理する（S3パス/ファイル形式/サイズ目安）
+    - データの所在・形式・粒度・依存関係を整理する
     - 抽出設計を行う（実取得はしない、設計のみ）
     - データパイプラインのリスクを指摘する
-  使用スキル: data-intake
-  入力: Orchestratorからのデータソース情報
-  出力: データ所在マップ + 抽出設計書 + リスク一覧
-  独立性:
-    - Quality Agent・EDA Agentとコンテキストを共有しない
-    - 自身の判断でデータにアクセスしない
+  使用スキル: 10-discover
+  出力: data_map.txt + grain_notes.txt + リスク一覧
 
-[Agent 2] Quality Agent
+[Agent 2] Quality（データ契約・品質計画）
   役割:
-    - スキーマ契約を整理する（カラム/型/NULL/値域）
-    - 欠損・異常値の観点を提示する
+    - スキーマ契約を整理する（型・NULL・値域・SLA）
+    - 品質チェック計画を生成する
     - 将来のデータ品質テストの観点を列挙する
-  使用スキル: schema-contract
-  入力: Orchestratorからのスキーマ情報
-  出力: スキーマ契約書 + 品質チェックリスト + 整合性検証観点
-  独立性:
-    - Data Intake Agentとコンテキストを共有しない
-    - 実際のデータに触れずにスキーマを定義する
+  使用スキル: 20-contract-quality
+  出力: data_contract.yaml + data_quality_plan.txt
 
-[Agent 3] EDA Agent
+[Agent 3] Builder（変換設計・ETL設計）
   役割:
-    - 分析仮説を生成する
+    - データ変換ロジックの設計書を生成する
+    - 命名規約を定義する
+    - ETL/dbt/Glueの実装設計（実行はしない）
+  使用スキル: 30-transform-blueprint
+  出力: transform_blueprint.txt
+
+[Agent 4] Analyst（EDA・仮説生成）
+  役割:
+    - 分析仮説を生成する（楽観仮説と反証仮説のペアで必ず）
     - EDA観点を拡張する（見落とされがちな角度を提示）
-    - ノートブックテンプレートを設計する
-  使用スキル: eda-notebook, sql-generator
-  入力: Orchestratorからの分析目的
-  出力: 分析仮説リスト + EDAノートブックテンプレート + 検証SQL草案
-  独立性:
-    - Feature Agentとコンテキストを共有しない
-    - 小サンプル前提で設計し、大規模実行は提案しない
+    - EDAノートブックテンプレートを設計する
+  使用スキル: 40-eda
+  出力: eda_plan.txt + hypothesis_log.txt
+  重要: 仮説は「楽観仮説A + 反証仮説B」のペアで出力する。
+        単方向の仮説のみの出力は認めない（アンカリング回避）。
 
-[Agent 4] Feature Agent
+[Agent 5] Reporter（レポート設計・サマリー生成）
   役割:
-    - 特徴量の候補を生成する
+    - レポートの構造・アウトラインを設計する
+    - エグゼクティブサマリーのテンプレートを生成する
+    - 報告対象に合わせたコミュニケーション設計をする
+  使用スキル: 60-report
+  出力: report_outline.txt + executive_summary.txt
+
+[Agent 6] Operator（運用設計・監視・インシデント）
+  役割:
+    - 監視計画・SLO/SLI・インシデントランブックを設計する
+    - アラート起点フローの対応設計を行う
+  使用スキル: 70-operate
+  出力: monitoring_plan.txt + slos_slis.txt + runbook_incident.txt
+
+[Agent 7] ML（機械学習・モデル設計）※任意
+  役割:
+    - MLタスク定義・特徴量設計・評価設計を行う
+    - モデルカードを設計する
     - データリーク観点を整理する
-    - 特徴量エンジニアリングの設計書を作成する
-  使用スキル: sql-generator, schema-contract
-  入力: Orchestratorからの予測目的
-  出力: 特徴量候補リスト + リーク観点チェックリスト + 特徴量設計書
-  独立性:
-    - EDA Agentと独立して動作する（視点の汚染を防ぐ）
-    - 学習・推論コードの実行は行わない
+  使用スキル: 50-ml-optional
+  出力: ml_plan.txt + eval_plan.txt + model_card.txt
+  特記: 学習・推論コードの実行は行わない。
 
-[Agent 5] Governance Agent
+[Agent 8] Governance（PII・コンプライアンス・承認）※常時独立稼働
   役割:
-    - PIIリスクを評価する
-    - 承認レベルを明示する
+    - PIIリスクを評価する（他Agentから独立して評価する）
+    - 承認レベルを明示する（L1/L2/L3）
     - コンプライアンス上の懸念を報告する
-  使用スキル: data-governance-guard
-  入力: Orchestratorからのデータカラム情報
+  使用スキル: data-governance-guard（既存スキル）
   出力: PIIリスク分類表 + 承認マトリックス + コンプライアンスチェックリスト
-  独立性:
-    - 他のAgentの判断に引きずられず、独立してリスク評価する
-    - 「このデータは安全だ」という他Agentの前提を盲信しない
+  重要: Governance Agentは他のAgentが「安全」と判断した場合でも
+        独立してリスク評価する。High Riskの場合はL3承認まで次フェーズ停止。
 
 
-3. 通信フロー
+3. 通信ルール
 -------------
-以下のフローで動作する（並列実行フェーズあり）:
+(1) 出力フォーマット（各Agentが必ず返す構造）:
+  ---
+  Agent: [エージェント名]
+  フェーズ: [対応するライフサイクルフェーズ]
+  提案内容: [具体的な提案]
+  根拠: [提案の根拠]
+  反証・懸念: [この提案が誤りうる条件・リスク] ← 必須
+  次のアクション候補: [Orchestratorへの選択肢]
+  出力ファイル: [生成したファイルのパス]
+  ---
 
+(2) 反証タスクのルール:
+  - 各Agentは提案と同時に「この提案が誤りうる条件」を1つ以上記載する
+  - Analystは「楽観仮説A + 反証仮説B」のペアを必ず出力する
+  - Governance AgentはすべてのAgentの出力を独立レビューする
+
+(3) 最終判断のルール:
+  - 提案の採否はOrchestratorのみが決定する
+  - 矛盾する場合、Orchestratorは両方をユーザーに提示する
+  - Governance がHigh Riskを出した場合、Orchestratorは実行を止める
+
+
+4. 通信フロー
+-------------
 Phase 1: 初期化（Orchestrator）
-  - ユーザー目的の受け取り
+  - ユーザー目的の受け取り（GitHub Issue）
   - 仮説・タスクへの分解
   - Agent割当の決定
 
-Phase 2: 並列探索（Agent 1〜5が独立して同時稼働）
-  - Data Intake Agent  → データ所在マップ + リスク一覧
-  - Quality Agent      → スキーマ契約書 + 品質チェックリスト
-  - EDA Agent          → 分析仮説 + ノートブックテンプレート
-  - Feature Agent      → 特徴量候補 + リーク観点
-  - Governance Agent   → PIIリスク評価 + 承認マトリックス
+Phase 2: 並列探索（Scout / Quality / Analyst / Builder / Governance が独立稼働）
+  - Scout         → data_map.txt + grain_notes.txt
+  - Quality       → data_contract.yaml + data_quality_plan.txt
+  - Analyst       → eda_plan.txt + hypothesis_log.txt（仮説ペアで）
+  - Builder       → transform_blueprint.txt
+  - Governance    → PIIリスク分類表 + 承認マトリックス（独立評価）
 
 Phase 3: 統合（Orchestrator）
   - 各Agentの成果物を収集する
-  - 矛盾・競合を解消する（例: EDA Agentが提案したカラムにGovernanceがリスクを検出）
-  - 最終レポートを生成する
-  - 次のアクションを人間に提示する
+  - 矛盾・競合を解消する
+  - Governance のサインオフを確認する
+  - 最終アウトプットを生成する
 
-Phase 4: 人間のレビュー
-  - 最終レポートをレビューする
-  - 実行が必要な操作（SQL実行、Glue Job起動等）を人間が行う
-  - フィードバックをOrchestratorに返す（次サイクルへ）
+Phase 4: 人間のレビューと承認
+  - PRで成果物をレビューする
+  - 実行が必要な操作はL2/L3承認後に人間が実施する
+  - フィードバックを80-improve → 00-intakeへ記録する
 
 
-4. トークン消費前提
+5. トークン消費前提
 -------------------
-Agent Teamsはトークンコストが高い。以下の原則で最小化する:
-
 - 各Agentのコンテキストウィンドウは独立させ、全履歴を共有しない
 - Orchestratorへの報告は要約形式（詳細は別ファイルに保存）
 - 並列探索は「本当に多角的な視点が必要なタスク」に限定する
 - 単純なタスク（SQL1本の生成等）はAgentを使わずSkillを直接呼ぶ
 
 
-5. 誤った結論の収束防止設計
------------------------------
-単一Agentや反復対話では、誤った前提が固定化するリスクがある。
-以下の設計でこれを防ぐ:
+6. 並列化の型
+-------------
+型1: 仮説A/Bを別Agentで走らせる
+  - Analyst AgentがH1・H2を独立して担当
+  - OrchestratorがH1/H2の結果を統合する
 
-(1) 独立コンテキスト
-    - 各Agentは他Agentの中間結果を見ない
-    - これによりAgent間の思考汚染を防ぐ
+型2: 監査/ガバナンスの並列独立レビュー
+  - Builder・Analyst・MLが生成フェーズを並列実行
+  - 同時にGovernance Agentが全成果物を独立レビュー
+  - OrchestratorがGovernanceのサインオフを確認してから次フェーズへ
 
-(2) Governance Agentの独立性の強化
-    - Governance Agentは他のAgentが「安全」と判断した場合でも
-      独自にリスク評価する。他Agentの楽観的判断に引きずられない。
+型3: EDA × 変換設計の並列化
+  - Analyst（EDA）と Builder（変換設計）を同時に走らせる
+  - 両者の出力をOrchestratorが統合し、矛盾を解消する
 
-(3) Orchestratorの調停ルール
-    - 複数AgentがAとBで矛盾する場合、OrchestratorはA/Bどちらかを
-      一方的に採用せず、両方をユーザーに提示して判断を仰ぐ
-    - Governance Agentが「高リスク」を報告した場合は、
-      他Agentの成果物があっても実行には進まない
 
-(4) 最終確認の人間介在
+7. 誤収束防止設計
+-----------------
+(1) 独立コンテキスト:
+    - 各Agentは他Agentの中間結果を見ない（思考汚染防止）
+
+(2) 反証義務化:
+    - 各Agentは「この提案が誤りうる条件」を必ず1つ以上記載する
+    - Analystは楽観仮説と反証仮説のペアを必ず出力する
+
+(3) Governance独立評価:
+    - 他のAgentが「安全」と判断した場合でも独自にリスク評価する
+
+(4) 最終確認の人間介在:
     - 「実行してよいか？」の判断は常に人間が行う
     - Claudeは「設計・提案」はするが「決定・実行」はしない
 
 
-6. 並列探索の使い所
--------------------
-Agent Teamsを使うべきタスク:
-  - 新しいデータソースの全体評価（品質/EDA/ガバナンスを一気に評価）
-  - 特徴量エンジニアリングの多角的探索
-  - コンプライアンス観点を含む設計レビュー
-
-Agent Teamsを使わずSkillを直接使うべきタスク:
-  - 特定のSQL1本の生成（sql-generatorを直接呼ぶ）
-  - スキーマ定義の確認（schema-contractを直接呼ぶ）
-  - 簡単なPIIチェック（data-governance-guardを直接呼ぶ）
-
-
-7. 将来の拡張計画
+8. 将来の拡張計画
 -----------------
-P1: MCP連携Agent
-  - S3読み取り専用MCPを通じて実際のメタデータを取得するAgentを追加
-  - Glue Catalogとの自動同期機能をAgent経由で提供
+P1（MCP連携後）:
+  - Scout AgentがS3 Read-only MCPを通じてメタデータを自律取得
+  - Quality AgentがGlue Catalogから実スキーマを自動同期
+  - CI連携AgentがPRマージ時にスキーマ変更を自動検出・報告
 
-P2: 自動品質チェックAgent
-  - CI/CD連携Agent: PRマージ時に自動でスキーマ変更を検出・報告
-  - コスト監視Agent: Athenaクエリコストの定期レポートを生成
+P2（承認付き実行連携後）:
+  - Operator AgentがAthena Read-only MCPでクエリ実行（コスト上限付き）
+  - Reporter AgentがBI連携でレポートを自動生成
 
 ==============================================================

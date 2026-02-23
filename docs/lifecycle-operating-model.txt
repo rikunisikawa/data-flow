@@ -1,0 +1,228 @@
+==============================================================
+Lifecycle Operating Model — 分析ライフサイクル運転モデル
+プロジェクト: AWS Serverless Data Platform (mHealth ETL)
+バージョン: 1.0.0
+==============================================================
+
+本ドキュメントが"全自動化の設計書"の中核。
+「依頼起点」「アラート起点」「定期起点」の3つのフローを定義する。
+
+すべてのフローで「生成は自動OK・実行は承認ゲート必須」が前提。
+
+==============================================================
+フロー1: 依頼起点（Issue）
+==============================================================
+
+起点: GitHub Issue（analysis-request.ymlテンプレートを使用）
+出力: artifacts/<YYYYMMDD>_<slug>/ 以下の設計ドキュメント群
+     → PR駆動でレビュー → 人間が実行
+
+--------------------------------------------------------------
+Step 00: Intake（受付）
+--------------------------------------------------------------
+入力ファイル: なし（GitHub Issueの内容）
+担当スキル:   .claude/skills/00-intake/SKILL.md
+担当Agent:    Orchestrator
+
+処理:
+  1. GitHubのIssueを読み取る
+  2. analysis_charter.txtを生成する
+  3. wbs.txtで作業分解する
+  4. constraints.txtで制約を明示する
+
+出力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/analysis_charter.txt
+  docs/artifacts/<YYYYMMDD>_<slug>/wbs.txt
+  docs/artifacts/<YYYYMMDD>_<slug>/constraints.txt
+
+次へ: analysis_charter.txtをレビューしてから Step 10 へ
+
+--------------------------------------------------------------
+Step 10: Discover（データ発見）
+--------------------------------------------------------------
+入力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/analysis_charter.txt
+担当スキル:   .claude/skills/10-discover/SKILL.md
+担当Agent:    Scout
+
+処理:
+  1. チャーターの「対象データ」欄を読み取る
+  2. data_map.txtでデータ所在を整理する（プレースホルダで可）
+  3. grain_notes.txtで粒度を確認する
+
+出力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/data_map.txt
+  docs/artifacts/<YYYYMMDD>_<slug>/grain_notes.txt
+
+次へ: エンジニアが実際のパスを補完してから Step 20 へ
+
+--------------------------------------------------------------
+Step 20: Contract/Quality（データ契約・品質計画）
+--------------------------------------------------------------
+入力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/data_map.txt
+担当スキル:   .claude/skills/20-contract-quality/SKILL.md
+担当Agent:    Quality + Governance（独立レビュー）
+
+処理:
+  1. data_contract.yamlでスキーマ契約を定義する
+  2. data_quality_plan.txtで品質チェック計画を作る
+
+出力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/data_contract.yaml
+  docs/artifacts/<YYYYMMDD>_<slug>/data_quality_plan.txt
+
+次へ: L2承認後に Step 30 へ
+
+--------------------------------------------------------------
+Step 30: Transform Blueprint（変換設計）
+--------------------------------------------------------------
+入力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/data_contract.yaml
+担当スキル:   .claude/skills/30-transform-blueprint/SKILL.md
+担当Agent:    Builder
+
+処理:
+  1. transform_blueprint.txtで変換ロジックを設計する
+  [実装はL3承認後にエンジニアが実施する]
+
+出力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/transform_blueprint.txt
+
+次へ: L3承認後 → エンジニアが実装 → Step 40 へ
+
+--------------------------------------------------------------
+Step 40: EDA（探索的データ分析）
+--------------------------------------------------------------
+入力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/data_contract.yaml
+  docs/artifacts/<YYYYMMDD>_<slug>/data_map.txt
+担当スキル:   .claude/skills/40-eda/SKILL.md
+担当Agent:    Analyst + Governance（PII確認）
+
+処理:
+  1. eda_plan.txtでEDA計画を設計する
+  2. hypothesis_log.txtで仮説を列挙する（楽観+反証ペア）
+  [EDAの実行はL2承認後にエンジニアが小サンプルで実施する]
+
+出力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/eda_plan.txt
+  docs/artifacts/<YYYYMMDD>_<slug>/hypothesis_log.txt
+
+次へ: 仮説をレビューして Step 50（ML任意）または Step 60 へ
+
+--------------------------------------------------------------
+Step 50: ML（機械学習、任意）
+--------------------------------------------------------------
+入力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/hypothesis_log.txt
+担当スキル:   .claude/skills/50-ml-optional/SKILL.md
+担当Agent:    ML + Governance
+
+処理:
+  1. ml_plan.txtでML設計を行う
+  2. eval_plan.txtで評価設計を行う
+  3. model_card.txtを初期作成する（数値はTBD）
+  [学習・推論はL3承認後にエンジニアが実施する]
+
+出力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/ml_plan.txt
+  docs/artifacts/<YYYYMMDD>_<slug>/eval_plan.txt
+  docs/artifacts/<YYYYMMDD>_<slug>/model_card.txt
+
+次へ: L3承認後 → Step 60 へ
+
+--------------------------------------------------------------
+Step 60: Report（レポート設計）
+--------------------------------------------------------------
+入力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/hypothesis_log.txt
+  docs/artifacts/<YYYYMMDD>_<slug>/eda_plan.txt（または ml_plan.txt）
+担当スキル:   .claude/skills/60-report/SKILL.md
+担当Agent:    Reporter + Orchestrator
+
+処理:
+  1. report_outline.txtでレポート構造を確定する
+  2. executive_summary.txtを生成する（数値はTBD）
+  [配布はL3承認後に人間が実施する]
+
+出力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/report_outline.txt
+  docs/artifacts/<YYYYMMDD>_<slug>/executive_summary.txt
+
+次へ: Step 70 へ
+
+--------------------------------------------------------------
+Step 70: Operate（運用設計）
+--------------------------------------------------------------
+入力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/transform_blueprint.txt
+担当スキル:   .claude/skills/70-operate/SKILL.md
+担当Agent:    Operator
+
+処理:
+  1. monitoring_plan.txtで監視設計を行う
+  2. slos_slis.txtでSLO/SLIを定義する
+  3. runbook_incident.txtでインシデント手順を作成する
+  [監視設定の適用はL3承認後にSREが実施する]
+
+出力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/monitoring_plan.txt
+  docs/artifacts/<YYYYMMDD>_<slug>/slos_slis.txt
+  docs/artifacts/<YYYYMMDD>_<slug>/runbook_incident.txt
+
+次へ: Step 80 へ
+
+--------------------------------------------------------------
+Step 80: Improve（改善・振り返り）
+--------------------------------------------------------------
+入力ファイル: 全Stepの成果物
+担当スキル:   .claude/skills/80-improve/SKILL.md
+担当Agent:    Orchestrator + Quality
+
+処理:
+  1. improvement_backlog.txtで改善タスクを整理する
+  2. tech_debt_register.txtで技術負債を記録する
+  3. 次の00-intakeへのフィードバックを記録する
+
+出力ファイル:
+  docs/artifacts/<YYYYMMDD>_<slug>/improvement_backlog.txt
+  docs/artifacts/<YYYYMMDD>_<slug>/tech_debt_register.txt
+
+==============================================================
+フロー2: アラート起点（運用中の障害対応）
+==============================================================
+
+起点: 監視アラート発報（PagerDuty / Slack等）
+担当: Operator Agent + Orchestrator
+
+フロー:
+  1. アラート内容をOrchestrator に渡す
+  2. Operator Agentが runbook_incident.txt を参照して
+     「原因仮説と修正案」を生成する（実行しない）
+  3. 修正案をPRとして作成する（[要L3承認]ラベル付き）
+  4. SREが承認後に修正を適用する
+
+ポイント:
+  - Claudeは自律的にパイプラインを再起動しない
+  - 原因分析と修正案の生成のみ担う
+  - 実際の対応は必ず人間が runbook_incident.txt に従って実施する
+
+==============================================================
+フロー3: 定期起点（週次/月次バッチ）
+==============================================================
+
+起点: スケジュール（例: 毎週月曜）
+担当: Reporter Agent + Orchestrator
+
+フロー:
+  1. 前週/前月の improvement_backlog.txt と hypothesis_log.txt を参照する
+  2. 定期レポートの executive_summary.txt を更新する
+  3. PRを作成する（数値は[TBD]のままでOK。人間がレビュー）
+  4. 承認後に配布（L3承認必須）
+
+ポイント:
+  - レポートの配布（メール/Slack）はL3承認後に人間が実施する
+  - Claudeは配布を自律実行しない
+
+==============================================================

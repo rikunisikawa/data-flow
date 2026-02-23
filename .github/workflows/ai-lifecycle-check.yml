@@ -1,0 +1,226 @@
+name: AI Lifecycle Static Check
+
+on:
+  pull_request:
+    paths:
+      - ".claude/**"
+      - "docs/**"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/pull_request_template.md"
+
+# このワークフローは「静的検証のみ」を行う。
+# データ接続・クエリ実行・ジョブ実行・デプロイは絶対に行わない。
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  yaml-json-lint:
+    name: "YAML / JSON 構文チェック"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check YAML syntax (.claude/settings.json)
+        run: |
+          python3 -c "
+          import json, sys
+          with open('.claude/settings.json') as f:
+              json.load(f)
+          print('✅ .claude/settings.json: valid JSON')
+          "
+
+      - name: Check data_contract YAML templates
+        run: |
+          pip install pyyaml --quiet
+          python3 -c "
+          import yaml, glob, sys
+          files = glob.glob('.claude/skills/**/templates/*.yaml', recursive=True)
+          files += glob.glob('docs/artifacts/**/*.yaml', recursive=True)
+          errors = []
+          for f in files:
+              try:
+                  with open(f) as fp:
+                      yaml.safe_load(fp)
+                  print(f'✅ {f}: valid YAML')
+              except Exception as e:
+                  errors.append(f'❌ {f}: {e}')
+          if errors:
+              for e in errors:
+                  print(e)
+              sys.exit(1)
+          "
+
+      - name: Check ISSUE_TEMPLATE YAML
+        run: |
+          pip install pyyaml --quiet
+          python3 -c "
+          import yaml, glob, sys
+          files = glob.glob('.github/ISSUE_TEMPLATE/*.yml')
+          files += glob.glob('.github/ISSUE_TEMPLATE/*.yaml')
+          errors = []
+          for f in files:
+              try:
+                  with open(f) as fp:
+                      yaml.safe_load(fp)
+                  print(f'✅ {f}: valid YAML')
+              except Exception as e:
+                  errors.append(f'❌ {f}: {e}')
+          if errors:
+              for e in errors:
+                  print(e)
+              sys.exit(1)
+          "
+
+  required-files-check:
+    name: "必須ファイル存在チェック"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required Skill SKILL.md files exist
+        run: |
+          python3 -c "
+          import os, sys
+          skills = [
+              '.claude/skills/00-intake/SKILL.md',
+              '.claude/skills/10-discover/SKILL.md',
+              '.claude/skills/20-contract-quality/SKILL.md',
+              '.claude/skills/30-transform-blueprint/SKILL.md',
+              '.claude/skills/40-eda/SKILL.md',
+              '.claude/skills/50-ml-optional/SKILL.md',
+              '.claude/skills/60-report/SKILL.md',
+              '.claude/skills/70-operate/SKILL.md',
+              '.claude/skills/80-improve/SKILL.md',
+          ]
+          docs = [
+              'docs/lifecycle-operating-model.txt',
+              'docs/agent-team-design.txt',
+              'docs/claude-agent-playbook.txt',
+              'docs/mcp-architecture-draft.txt',
+              'docs/governance-and-safety.txt',
+              'docs/current-state-summary.txt',
+              'docs/artifacts/README.txt',
+          ]
+          missing = []
+          for f in skills + docs:
+              if not os.path.exists(f):
+                  missing.append(f'❌ Missing: {f}')
+              else:
+                  print(f'✅ {f}')
+          if missing:
+              for m in missing:
+                  print(m)
+              sys.exit(1)
+          "
+
+      - name: Check each SKILL.md contains required sections
+        run: |
+          python3 -c "
+          import glob, sys
+          required_sections = [
+              'name',
+              '目的',
+              '入力',
+              '出力',
+              'ガードレール',
+              '禁止',
+          ]
+          errors = []
+          for f in glob.glob('.claude/skills/*/SKILL.md'):
+              with open(f) as fp:
+                  content = fp.read().lower()
+              for section in required_sections:
+                  if section.lower() not in content:
+                      errors.append(f'❌ {f}: missing section [{section}]')
+          if errors:
+              for e in errors:
+                  print(e)
+              sys.exit(1)
+          else:
+              print('✅ All SKILL.md files contain required sections')
+          "
+
+  secrets-scan:
+    name: "secrets検知（簡易）"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for secrets patterns in docs/ and .claude/
+        run: |
+          python3 -c "
+          import re, glob, sys
+          # 検知パターン（簡易。本番ではtruffleHog等を使うこと）
+          patterns = [
+              (r'AKIA[0-9A-Z]{16}', 'AWS Access Key ID'),
+              (r'(?i)aws[_\-]?secret[_\-]?access[_\-]?key\s*[:=]\s*\S+', 'AWS Secret Key'),
+              (r'(?i)password\s*[:=]\s*[^\[\{<\n]{8,}', 'Password literal'),
+              (r'(?i)api[_\-]?key\s*[:=]\s*[^\[\{<\n]{8,}', 'API Key literal'),
+              (r'(?i)token\s*[:=]\s*[^\[\{<\n]{16,}', 'Token literal'),
+              (r'eyJ[a-zA-Z0-9_-]{10,}\.eyJ', 'JWT Token'),
+          ]
+          # TBD / プレースホルダは除外
+          exclude_patterns = [r'\[TBD\]', r'\[.*\]', r'placeholder', r'example', r'#']
+
+          files = glob.glob('docs/**/*', recursive=True)
+          files += glob.glob('.claude/**/*', recursive=True)
+          files = [f for f in files if not f.endswith(('.pyc', '.git'))]
+
+          findings = []
+          for fpath in files:
+              try:
+                  with open(fpath, 'r', errors='ignore') as fp:
+                      for lineno, line in enumerate(fp, 1):
+                          # プレースホルダ行はスキップ
+                          if any(re.search(ep, line, re.I) for ep in exclude_patterns):
+                              continue
+                          for pattern, desc in patterns:
+                              if re.search(pattern, line):
+                                  findings.append(f'⚠ {fpath}:{lineno}: {desc} detected')
+              except (IsADirectoryError, PermissionError):
+                  pass
+
+          if findings:
+              for f in findings:
+                  print(f)
+              print()
+              print('secrets疑いが検出されました。コミット前に確認してください。')
+              sys.exit(1)
+          else:
+              print('✅ No secrets patterns detected in docs/ and .claude/')
+          "
+
+  guardrail-check:
+    name: "ガードレール設定チェック"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check .claude/settings.json has PreToolUse hooks
+        run: |
+          python3 -c "
+          import json, sys
+          with open('.claude/settings.json') as f:
+              settings = json.load(f)
+
+          hooks = settings.get('hooks', {}).get('PreToolUse', [])
+          if not hooks:
+              print('❌ .claude/settings.json: PreToolUse hooks not found')
+              sys.exit(1)
+
+          # 必須ブロックパターンの確認
+          required_blocks = ['rm|delete|drop', 'run|start|execute|deploy', 'push|merge']
+          all_patterns = ' '.join(h.get('match', '') for h in hooks)
+          missing = []
+          for req in required_blocks:
+              key = req.split('|')[0]
+              if key not in all_patterns:
+                  missing.append(f'⚠ Block pattern missing: {req}')
+          if missing:
+              for m in missing:
+                  print(m)
+              sys.exit(1)
+          print(f'✅ PreToolUse hooks: {len(hooks)} rules configured')
+          "
